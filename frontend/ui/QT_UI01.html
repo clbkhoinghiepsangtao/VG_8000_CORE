@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QT-UI01 – Dashboard Quản trị</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#111827}
+.wrap{padding:18px;max-width:1800px;margin:auto}
+.panel{background:#fff;border:1px solid #dbe3ee;border-radius:14px;padding:16px;margin-bottom:14px}
+h1,h2{margin:0 0 8px}.sub{color:#667085;font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+button,input,a.btn{padding:9px 11px;border:1px solid #cfd8e3;border-radius:8px;background:#fff;text-decoration:none;color:#111827}
+button.primary{background:#1769e0;color:#fff;border-color:#1769e0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.grid>.panel{min-width:0}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpi{min-width:0;border:1px solid #dbe3ee;border-radius:10px;padding:10px 12px;background:#fff}
+.kpi small{color:#667085}.kpi b{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
+.section-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.bad{color:#b42318}.warn{color:#b54708}.good{color:#067647}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}
+.num{text-align:right}.status{padding:9px;background:#f8fafc;border-radius:8px;margin-top:8px}
+@media(max-width:1200px){.grid{grid-template-columns:1fr}}
+@media(max-width:480px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="panel">
+  <h1>QT-UI01 – Dashboard Quản trị tổng hợp</h1>
+  <div class="sub">Tổng hợp dữ liệu đã xử lý từ các phân hệ nghiệp vụ; Dashboard không sửa chứng từ gốc.</div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <label>Từ ngày<br><input id="fromDate" type="date"></label>
+    <label>Đến ngày<br><input id="toDate" type="date"></label>
+    <label>Tháng<br><input id="month" type="month"></label>
+    <button id="run" class="primary">Tra cứu</button>
+    <button id="export">Xuất Excel Dashboard</button>
+  </div>
+  <div id="status" class="status">Đang tải dữ liệu...</div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <div class="section-head"><h2>Công nợ & Thu tiền</h2><a class="btn" href="/ui/QTGH_V02.html" target="_blank">Mở QTGH</a></div>
+    <div id="qtghCards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section-head"><h2>Xả – Bù</h2><a class="btn" href="/ui/XB_UI01.html" target="_blank">Mở Xả–Bù</a></div>
+    <div id="xbCards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section-head"><h2>Kết quả NVKD</h2><a class="btn" href="/ui/KQ_UI01.html" target="_blank">Mở KQ NVKD</a></div>
+    <div id="kqCards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section-head"><h2>Giao hàng / Lái xe / Phương tiện</h2><a class="btn" href="/ui/GH_KQ01.html" target="_blank">Mở GH-KQ</a></div>
+    <div id="ghCards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section-head"><h2>Bốc xếp PACK</h2><a class="btn" href="/ui/BX_UI01.html" target="_blank">Mở Bốc xếp</a></div>
+    <div id="bxCards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section-head"><h2>Ngoại lệ / Cảnh báo</h2></div>
+    <div id="exCards" class="cards"></div>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+const A="/api/qtgh-stable",$=id=>document.getElementById(id);
+const fmt=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:3}).format(Number(v||0));
+const money=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+let admin=null,kq=null,gh=null,bx=null;
+
+async function get(url){
+  const r=await fetch(url),t=await r.text();let x;
+  try{x=JSON.parse(t)}catch{x=t}
+  if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+  return x;
+}
+function params(){
+  const p=new URLSearchParams();
+  if($("fromDate").value)p.set("from_date",$("fromDate").value);
+  if($("toDate").value)p.set("to_date",$("toDate").value);
+  if($("month").value)p.set("month",$("month").value);
+  return p;
+}
+function card(title,val,cls=""){return `<div class="kpi"><small>${title}</small><b class="${cls}">${val}</b></div>`}
+function render(){
+  const q=admin?.qtgh||{};
+  $("qtghCards").innerHTML=[
+    card("Đơn đã khóa",fmt(q.locked_orders)),
+    card("Phải thu",money(q.amount_due)),
+    card("Tiền mặt",money(q.cash)),
+    card("Chuyển khoản",money(q.bank)),
+    card($("month").value?"Công nợ KH (phát sinh kỳ)":"Công nợ KH",money(q.customer_debt),q.customer_debt>0?"warn":"good"),
+    card($("month").value?"Nợ NVGH (phát sinh kỳ)":"Nợ NVGH",money(q.employee_debt),q.employee_debt>0?"warn":"good"),
+    card("Phiếu chờ thu",fmt(q.pending_cash_receipts),q.pending_cash_receipts>0?"warn":"good"),
+    card("Phiếu đã thu",fmt(q.received_cash_receipts))
+  ].join("");
+
+  const x=admin?.xb||{};
+  $("xbCards").innerHTML=[
+    card("DMS/MBW active",fmt(x.dms_mbw_rows)),
+    card("MISA Bù active",fmt(x.misa_bu_rows)),
+    card("Batch Preview",fmt(x.preview_batches),x.preview_batches>0?"warn":"good"),
+    card("Dòng lỗi",fmt(x.error_rows),x.error_rows>0?"bad":"good")
+  ].join("");
+
+  const ks=(kq?.summary||kq?.totals||{});
+  $("kqCards").innerHTML=[
+    card("DS đặt",money(ks.doanh_so_dat||ks.ds_dat||ks.gss_dat||0)),
+    card("DS giao TC",money(ks.doanh_so_giao_tc||ks.ds_giao_tc||ks.gss_thuc_te||0)),
+    card("Đơn đặt",fmt(ks.don_dat||ks.so_don_dat||0)),
+    card("Đơn giao TC",fmt(ks.don_giao_tc||ks.so_don_giao_tc||0)),
+    card("ECO",fmt(ks.eco||ks.eco_pct||0)+"%"),
+    card("Nhân viên",fmt((kq?.rows||[]).length))
+  ].join("");
+
+  const gs=gh?.summary||{};
+  $("ghCards").innerHTML=[
+    card("Đơn",fmt(gs.so_don)),
+    card("Giao TC",fmt(gs.so_don_giao_tc)),
+    card("Giao đủ",fmt(gs.giao_du)),
+    card("Giao 1 phần",fmt(gs.giao_mot_phan)),
+    card("Vỡ 100%",fmt(gs.vo_100),gs.vo_100>0?"warn":"good"),
+    card("Khối lượng kg",fmt(gs.khoi_luong_kg)),
+    card("Số tiền thực tính",money(gs.so_tien_thuc_tinh)),
+    card("% ≤ D2",fmt(gs.pct_le_d2||0)+"%")
+  ].join("");
+
+  const bs=bx?.summary||admin?.bx||{};
+  $("bxCards").innerHTML=[
+    card("Số PACK",fmt(bs.pack_count)),
+    card("PACK nội bộ",fmt(bs.internal_pack_count)),
+    card("PACK thuê ngoài",fmt(bs.external_pack_count)),
+    card("Tổng kg",fmt(bs.kg_total)),
+    card("Tổng tiền",money(bs.amount_total)),
+    card("Thu nhập nội bộ",money(bs.internal_income_total||0)),
+    card("Tiền thuê ngoài",money(bs.external_amount_total||0))
+  ].join("");
+
+  const e=admin?.exceptions||{};
+  $("exCards").innerHTML=[
+    card("QT nháp",fmt(e.qt_draft),e.qt_draft>0?"warn":"good"),
+    card("Chờ kho nhận",fmt(e.return_waiting),e.return_waiting>0?"warn":"good"),
+    card("KH còn nợ",fmt(e.customer_debt_count),e.customer_debt_count>0?"warn":"good"),
+    card("NVGH còn nợ",fmt(e.employee_debt_count),e.employee_debt_count>0?"warn":"good"),
+    card("Phiếu chờ thu",fmt(e.cash_waiting),e.cash_waiting>0?"warn":"good"),
+    card("PACK nháp",fmt(e.bx_draft_pack),e.bx_draft_pack>0?"warn":"good"),
+    card("Điều chỉnh chờ",fmt(e.adjustment_pending),e.adjustment_pending>0?"warn":"good"),
+    card("Lỗi nguồn XB",fmt(e.xb_error_rows),e.xb_error_rows>0?"bad":"good")
+  ].join("");
+}
+
+async function load(){
+  try{
+    $("status").textContent="Đang tổng hợp dữ liệu...";
+    const p=params();
+    const month=$("month").value || "2026-08";
+
+    const qAdmin=get(A+"/admin/dashboard-v1?"+p.toString());
+    const qKq=get(A+"/kq-nvkd/report-v110?month="+encodeURIComponent(month));
+    const qp=new URLSearchParams();
+    if($("month").value){
+      const [year,mon]=$("month").value.split("-").map(Number);
+      qp.set("from_date",`${year}-${String(mon).padStart(2,"0")}-01`);
+      qp.set("to_date",`${year}-${String(mon).padStart(2,"0")}-${String(new Date(year,mon,0).getDate()).padStart(2,"0")}`);
+    }else{
+      if($("fromDate").value)qp.set("from_date",$("fromDate").value);
+      if($("toDate").value)qp.set("to_date",$("toDate").value);
+    }
+    const qGh=get(A+"/gh-kq/report-v103?"+qp.toString());
+    const qBx=get(A+"/bx-pack-v3/report-v37?"+p.toString());
+
+    const rs=await Promise.allSettled([qAdmin,qKq,qGh,qBx]);
+    admin=rs[0].status==="fulfilled"?rs[0].value:{};
+    kq=rs[1].status==="fulfilled"?rs[1].value:{};
+    gh=rs[2].status==="fulfilled"?rs[2].value:{};
+    bx=rs[3].status==="fulfilled"?rs[3].value:{};
+
+    render();
+    const failed=rs.filter(x=>x.status==="rejected").length;
+    const note=" Xả–Bù và Ngoại lệ phản ánh trạng thái hiện tại; số dư công nợ là số dư hiện tại của khoản phát sinh trong kỳ.";
+    $("status").innerHTML=(failed?`Đã tải Dashboard; <span class="warn">${failed} nguồn chi tiết chưa phản hồi.</span>`:"Đã tải đầy đủ các nguồn Dashboard.")+($("month").value?note:"");
+  }catch(e){
+    $("status").innerHTML=`<span class="bad">${e.message}</span>`;
+  }
+}
+$("run").onclick=load;
+
+$("export").onclick=()=>{
+  const rows=[
+    ["Nhóm","Chỉ tiêu","Giá trị"],
+    ["QTGH","Đơn đã khóa",admin?.qtgh?.locked_orders||0],
+    ["QTGH","Phải thu",admin?.qtgh?.amount_due||0],
+    ["QTGH","Công nợ KH",admin?.qtgh?.customer_debt||0],
+    ["QTGH","Nợ NVGH",admin?.qtgh?.employee_debt||0],
+    ["XB","DMS/MBW active",admin?.xb?.dms_mbw_rows||0],
+    ["XB","Dòng lỗi",admin?.xb?.error_rows||0],
+    ["GH","Đơn giao TC",gh?.summary?.so_don_giao_tc||0],
+    ["GH","Khối lượng kg",gh?.summary?.khoi_luong_kg||0],
+    ["GH","Số tiền thực tính",gh?.summary?.so_tien_thuc_tinh||0],
+    ["BX","Số PACK",bx?.summary?.pack_count||0],
+    ["BX","Tổng kg",bx?.summary?.kg_total||0],
+    ["BX","Thu nhập nội bộ",bx?.summary?.internal_income_total||0],
+    ["BX","Tiền thuê ngoài",bx?.summary?.external_amount_total||0]
+  ];
+  const html="<table border=1>"+rows.map(r=>"<tr>"+r.map(x=>"<td>"+x+"</td>").join("")+"</tr>").join("")+"</table>";
+  const blob=new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QT_UI01_Dashboard.xls";a.click();
+};
+
+load();
+})();
+</script>
+</body>
+</html>

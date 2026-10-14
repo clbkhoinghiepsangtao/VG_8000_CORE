@@ -1,0 +1,29 @@
+{
+  "source": "DEV trial source with V7 integrated",
+  "date": "2026-10-14",
+  "copied_files": 82,
+  "excluded_binary_or_runtime_config": [
+    "app\\qtgh_misa_template.xlsx",
+    "frontend\\templates\\01_Template_DMS_Xa_V1.0.xlsx",
+    "frontend\\templates\\02_Template_DMS_MBW_GiaoThat_BanBu_V1.0.xlsx",
+    "frontend\\templates\\03_Template_MISA_BanBu_V1.0.xlsx",
+    "frontend\\templates\\04_Template_MISA_NhapHang_BocVao_V1.0.xlsx"
+  ],
+  "credential_scan_findings": [],
+  "checks": "Python AST syntax passed for exported Python files",
+  "application_hashes": {
+    "app\\qtgh_bank_report.py": "44eb4583d63c84a8cd851a32b88c6849a952fb49c9d498cf71d7805667e32dbc",
+    "app\\qtgh_finalize_v11.py": "747818523f935de1b28b8624e208694bde0e7525f7d8974247915987ebf6743b",
+    "app\\qtgh_handoff_v11.py": "742624dff496be87b6f452c2d76dd5771c883ec8a9d2785452b5b978ed62e64d",
+    "app\\qtgh_misa_export.py": "a10cdaec42c5749f3f4cd1918b8c32e9a9bb27752f929d284b59dff4b63a7d38",
+    "app\\qtgh_money_candidate.py": "b77968282990a16e3faf2367ba9c731a01dab3d69ecaa439cdebf022e575e05b",
+    "app\\qtgh_phase2b_v11.py": "6c25ddb0403611cbafda44311c9c520aa9b88b67ab31340766268b246a3265c9",
+    "app\\qtgh_prep_v11.py": "59f4200834fd93849f4fb445e942253f5b2fdd093ced1895e4f5d9b3773682dd",
+    "app\\qtgh_print_v11.py": "7db942f5d451b739d793d117b6ef8cadba58c736af1708ad79194786f1830898",
+    "app\\qtgh_product_print_names.py": "89433457ac608c0c49434f5e6d474923a128d2b3f415cb5633aea63a18036c33",
+    "app\\qtgh_qr_snapshot_v11.py": "d8dc6b636f7388242076dc70323d22f26caedf3f2099ff546f9f778eddb98872",
+    "app\\qtgh_reduction_report.py": "2c0e9a3e5ede9d729d31ceef44ce4bc611ad1865f8ed00fc629e61e5a31f927f",
+    "app\\qtgh_stable.py": "4b09f94017343a8c24026b1eb30a76b6fc85d12d7a67eb0fe97369b76aa3418e",
+    "app\\qtgh_v02.py": "045a9bfe902071150346d66923f035d629624091dd9c08c23b40cdc4be272afa"
+  }
+}

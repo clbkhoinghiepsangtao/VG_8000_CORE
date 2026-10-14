@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XB-UI02</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f5f7fb;color:#111}
+.wrap{padding:18px}.card{background:#fff;border:1px solid #dfe5ef;border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:23px;margin:0 0 4px}h2{font-size:18px;margin:0 0 8px}.sub,.note{font-size:13px;color:#667085}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f5}
+label{font-size:11px;color:#52606d;display:block;margin-bottom:4px}
+input,select{height:36px;border:1px solid #cfd8e3;border-radius:7px;padding:0 9px;background:#fff;min-width:140px}
+button,a.btn{height:36px;border:1px solid #cfd8e3;border-radius:7px;padding:0 13px;background:#fff;color:#111;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.primary{background:#1769e0!important;color:#fff!important;border-color:#1769e0!important}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.stat{border:1px solid #dfe5ef;border-radius:10px;padding:11px}.stat b{display:block;font-size:21px;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #e5e9f0;padding:8px;text-align:right}th:first-child,td:first-child{text-align:left}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>XB-UI02 – Báo cáo tổng hợp Xả – Bán bù</h1>
+<div class="sub">Chỉ lấy Batch COMMITTED đang hiệu lực.</div>
+
+<div class="toolbar">
+  <div><label>Thời gian</label><select id="timeMode"><option value="range">Từ ngày - Đến ngày</option><option value="month">Theo tháng</option></select></div>
+  <div id="fromBox"><label>Từ ngày</label><input id="df" type="date"></div>
+  <div id="toBox"><label>Đến ngày</label><input id="dt" type="date"></div>
+  <div id="monthBox" style="display:none"><label>Tháng</label><input id="month" type="month"></div>
+
+  <div><label>Kiểu báo cáo</label><select id="reportType"><option value="employee">Theo nhân viên</option><option value="bu">Theo BU</option><option value="brand">Theo nhãn hiệu</option></select></div>
+
+  <div id="employeeBox"><label>Nhân viên</label><select id="employee"><option value="">Tất cả nhân viên</option></select></div>
+  <div id="buBox" style="display:none"><label>BU</label><select id="bu"><option value="">Tất cả BU</option></select></div>
+  <div id="brandBox" style="display:none"><label>Nhãn hiệu</label><select id="brand"><option value="">Tất cả nhãn hiệu</option></select></div>
+
+  <div><label>Tiêu chí</label><select id="metric"><option value="quantity">Số lượng</option><option value="ckkm">CK-KM</option></select></div>
+
+  <button id="run" class="primary">Xem báo cáo</button>
+  <a id="exportBtn" class="btn" href="#">Xuất Excel</a>
+</div>
+</div>
+
+<div class="card">
+<h2 id="title">Báo cáo số lượng theo nhân viên</h2>
+<div class="note" id="subtitle">Dư cuối = Dư đầu - Xả + Bù.</div>
+<div class="stats">
+<div class="stat"><span id="s1Label">Dư đầu</span><b id="s1">0</b></div>
+<div class="stat"><span id="s2Label">Xả trong kỳ</span><b id="s2">0</b></div>
+<div class="stat"><span id="s3Label">Tổng bù</span><b id="s3">0</b></div>
+<div class="stat"><span id="s4Label">Dư cuối</span><b id="s4">0</b></div>
+</div>
+<div style="overflow:auto"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const n=v=>Number(v||0).toLocaleString('vi-VN',{maximumFractionDigits:4});
+
+function buildParams(){
+ const p=new URLSearchParams();
+ if($('timeMode').value==='month'){
+   if($('month').value)p.set('month',$('month').value);
+ }else{
+   if($('df').value)p.set('date_from',$('df').value);
+   if($('dt').value)p.set('date_to',$('dt').value);
+ }
+ const rt=$('reportType').value;
+ p.set('report_type',rt);
+ if(rt==='employee' && $('employee').value)p.set('ma_nv',$('employee').value);
+ if(rt==='bu' && $('bu').value)p.set('bu',$('bu').value);
+ if(rt==='brand' && $('brand').value)p.set('nhan_hieu',$('brand').value);
+ return p;
+}
+
+function updateLayout(){
+ const rt=$('reportType').value;
+ $('employeeBox').style.display=rt==='employee'?'block':'none';
+ $('buBox').style.display=rt==='bu'?'block':'none';
+ $('brandBox').style.display=rt==='brand'?'block':'none';
+ const ckkm=$('metric').querySelector('option[value="ckkm"]');
+ ckkm.disabled=(rt!=='employee');
+ if(rt!=='employee' && $('metric').value==='ckkm')$('metric').value='quantity';
+ setupHead();
+}
+
+function setupHead(){
+ const rt=$('reportType').value, metric=$('metric').value;
+ let h=[];
+ if(metric==='ckkm'){
+   h=['Mã NV','Dư đầu','CK-KM Xả','Thưởng cấp đơn','Tổng quyền lợi','Đã chi MBW','Đã chi MISA','Tổng đã chi','Dư cuối'];
+ }else if(rt==='employee'){
+   h=['Mã NV','Mã SKU','Tên SKU','BU','Nhãn hiệu','Dư đầu','Xả','Bù MBW','Bù MISA','Tổng bù','Dư cuối'];
+ }else{
+   h=['Mã SKU','Tên SKU','BU','Nhãn hiệu','Dư đầu','Xả','Bù MBW','Bù MISA','Tổng bù','Dư cuối'];
+ }
+ $('thead').innerHTML='<tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr>';
+}
+
+async function loadOptions(){
+ const r=await fetch('/api/xb-ui02/v5/options?ts='+Date.now(),{cache:'no-store'});
+ const x=await r.json();
+ if(!r.ok){alert(x.detail||'Lỗi tải danh mục lọc');return;}
+
+ $('employee').innerHTML='';
+ let all=document.createElement('option');
+ all.value='';all.textContent='Tất cả nhân viên ('+(x.SO_NHAN_VIEN||0)+')';
+ $('employee').appendChild(all);
+ (x.NHAN_VIEN||[]).forEach(v=>{let o=document.createElement('option');o.value=v;o.textContent=v;$('employee').appendChild(o);});
+
+ $('bu').innerHTML='<option value="">Tất cả BU</option>';
+ (x.BU||[]).forEach(v=>{let o=document.createElement('option');o.value=v;o.textContent=v;$('bu').appendChild(o);});
+
+ $('brand').innerHTML='<option value="">Tất cả nhãn hiệu</option>';
+ (x.NHAN_HIEU||[]).forEach(v=>{let o=document.createElement('option');o.value=v;o.textContent=v;$('brand').appendChild(o);});
+
+ console.log('Employees loaded:',x.NHAN_VIEN);
+}
+
+async function loadReport(){
+ const rt=$('reportType').value, metric=$('metric').value, p=buildParams();
+ const url=metric==='ckkm'?'/api/xb-ui02/v5/ckkm?'+p.toString():'/api/xb-ui02/v5/quantity?'+p.toString();
+ const r=await fetch(url,{cache:'no-store'}),x=await r.json();
+ if(!r.ok){alert(x.detail||'Lỗi báo cáo');return;}
+ setupHead();$('tbody').innerHTML='';
+
+ if(metric==='ckkm'){
+   $('title').textContent='Đối soát CK-KM theo nhân viên';
+   $('subtitle').textContent='Dư cuối = Dư đầu + Quyền lợi phát sinh - Đã chi.';
+   $('s1Label').textContent='Dư đầu';$('s2Label').textContent='Tổng quyền lợi';$('s3Label').textContent='Tổng đã chi';$('s4Label').textContent='Dư cuối';
+   $('s1').textContent=n(x.total.DU_DAU);$('s2').textContent=n(x.total.TONG_QUYEN_LOI);$('s3').textContent=n(x.total.TONG_DA_CHI);$('s4').textContent=n(x.total.DU_CUOI);
+   (x.rows||[]).forEach(q=>{let arr=[q.MA_NV,q.DU_DAU,q.CKKM_XA,q.THUONG_CAP_DON,q.TONG_QUYEN_LOI,q.DA_CHI_MBW,q.DA_CHI_MISA,q.TONG_DA_CHI,q.DU_CUOI];let tr=document.createElement('tr');tr.innerHTML=arr.map((v,i)=>'<td>'+(i===0?(v||''):n(v))+'</td>').join('');$('tbody').appendChild(tr);});
+ }else{
+   $('title').textContent=rt==='employee'?'Báo cáo số lượng theo nhân viên':(rt==='bu'?'Báo cáo số lượng theo BU':'Báo cáo số lượng theo nhãn hiệu');
+   $('subtitle').textContent='Dư cuối = Dư đầu - Xả + Bù.';
+   $('s1Label').textContent='Dư đầu';$('s2Label').textContent='Xả trong kỳ';$('s3Label').textContent='Tổng bù';$('s4Label').textContent='Dư cuối';
+   $('s1').textContent=n(x.total.DU_DAU);$('s2').textContent=n(x.total.XA);$('s3').textContent=n(x.total.TONG_BU);$('s4').textContent=n(x.total.DU_CUOI);
+   (x.rows||[]).forEach(q=>{let arr=rt==='employee'?[q.MA_NV,q.MA_SKU,q.TEN_SKU,q.BU,q.NHAN_HIEU,q.DU_DAU,q.XA,q.BU_MBW,q.BU_MISA,q.TONG_BU,q.DU_CUOI]:[q.MA_SKU,q.TEN_SKU,q.BU,q.NHAN_HIEU,q.DU_DAU,q.XA,q.BU_MBW,q.BU_MISA,q.TONG_BU,q.DU_CUOI];let tr=document.createElement('tr');tr.innerHTML=arr.map(v=>'<td>'+((typeof v==='number')?n(v):(v||''))+'</td>').join('');$('tbody').appendChild(tr);});
+ }
+ const ex=buildParams();ex.set('metric',metric);$('exportBtn').href='/api/xb-ui02/v5/export?'+ex.toString();
+}
+
+$('timeMode').onchange=function(){let m=this.value==='month';$('monthBox').style.display=m?'block':'none';$('fromBox').style.display=m?'none':'block';$('toBox').style.display=m?'none':'block';};
+$('reportType').onchange=updateLayout;
+$('metric').onchange=setupHead;
+$('run').onclick=loadReport;
+
+updateLayout();
+loadOptions();
+</script>
+</body>
+</html>

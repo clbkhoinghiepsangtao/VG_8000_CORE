@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XB-UI01 – Nạp & kiểm tra dữ liệu nguồn</title>
+<style>
+:root{--blue:#1769e0;--line:#dfe4ec;--muted:#65738a;--bg:#f5f7fb;--green:#087443;--red:#c62828}
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;margin:0;background:var(--bg);color:#101828}
+.wrap{padding:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+h2,h3{margin:0 0 10px}
+.sub{font-size:13px;color:var(--muted)}
+.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:14px}
+label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}
+select{padding:10px 12px;border:1px solid #ccd5e3;border-radius:8px;min-width:310px;background:#fff}
+button,a.btn{padding:10px 14px;border-radius:8px;border:1px solid #ccd5e3;background:#fff;text-decoration:none;color:#111;cursor:pointer}
+.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.primary:disabled{opacity:.55;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.stat{border:1px solid var(--line);border-radius:10px;padding:12px}
+.stat b{display:block;font-size:24px;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px;border-bottom:1px solid #e6eaf0;text-align:left;vertical-align:top}
+th{color:#526179}
+.ok{color:var(--green);font-weight:700}
+.err{color:var(--red);font-weight:700}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.committed{background:#e8f5ee;color:var(--green)}
+.preview{background:#fff3e0;color:#9a5b00}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="card">
+  <h2>XB-UI01 – Nạp & kiểm tra dữ liệu nguồn Xả – Bán bù</h2>
+  <div class="sub">Đơn giao thật nạp tại <a href="/ui/QTGH_UI02.html">UI02 – Chuẩn bị, In &amp; Chốt giao hàng</a>. Tại đây chỉ nạp dữ liệu Xả và Bán bù.</div>
+
+  <div class="row">
+    <div>
+      <label>Nguồn dữ liệu</label>
+      <select id="sourceType">
+        <option value="dms-xa">DMS – Xả</option>
+        <option value="misa-ban-bu">MISA – Bán bù</option>
+      </select>
+    </div>
+
+    <a id="templateBtn" class="btn" href="/api/templates/dms-xa.xlsx" download>Lấy mẫu Excel</a>
+    <button id="uploadBtn" class="primary">Upload file</button>
+    <button id="historyBtn">Lịch sử upload</button>
+  </div>
+</div>
+
+<div class="card" id="previewCard" style="display:none">
+  <h3>Kết quả kiểm tra</h3>
+  <div id="message" class="sub"></div>
+
+  <div class="stats">
+    <div class="stat">Tổng dòng<b id="total">0</b></div>
+    <div class="stat">Hợp lệ<b id="valid">0</b></div>
+    <div class="stat">Lỗi<b id="errors">0</b></div>
+    <div class="stat">Batch<b id="batch">-</b></div>
+  </div>
+
+  <div class="row">
+    <button id="commitBtn" class="primary">Xác nhận nạp Batch</button>
+  </div>
+
+  <div style="overflow:auto;margin-top:14px">
+    <table>
+      <thead><tr><th>Sheet</th><th>Dòng</th><th>Trạng thái</th><th>Lỗi</th></tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Lịch sử Upload</h3>
+  <div style="overflow:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Batch</th><th>Nguồn</th><th>File</th><th>User</th><th>Thời gian</th>
+          <th>Tổng</th><th>Hợp lệ</th><th>Lỗi</th><th>Trạng thái</th><th>Thao tác</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  const source=document.getElementById('sourceType');
+  const templateBtn=document.getElementById('templateBtn');
+  const uploadBtn=document.getElementById('uploadBtn');
+  const historyBtn=document.getElementById('historyBtn');
+  const commitBtn=document.getElementById('commitBtn');
+
+  let currentBatch=null;
+  let currentStorage=null;
+
+  const CONFIG={
+    'dms-xa':{
+      template:'/api/templates/dms-xa.xlsx',
+      preview:'/api/xb-v2/dms-xa/preview',
+      storage:'xb_src_batch_v2'
+    },
+    'misa-ban-bu':{
+      template:'/api/templates/misa-ban-bu.xlsx',
+      preview:'/api/source-import/misa-ban-bu/preview',
+      storage:'src_batch'
+    }
+  };
+
+  function syncSource(){
+    const cfg=CONFIG[source.value];
+    templateBtn.href=cfg.template;
+    currentBatch=null;
+    currentStorage=null;
+    document.getElementById('previewCard').style.display='none';
+  }
+
+  async function loadHistory(){
+    const r=await fetch('/api/xb-v5/history',{cache:'no-store'});
+    const x=await r.json();
+    if(!r.ok){
+      alert(x.detail||'Không tải được lịch sử');
+      return;
+    }
+
+    const tb=document.getElementById('historyBody');
+    tb.innerHTML='';
+
+    (x.rows||[]).forEach(function(b){
+      const tr=document.createElement('tr');
+
+      const status=String(b.status||'').toUpperCase();
+      const statusHtml=status==='COMMITTED'
+        ? '<span class="badge committed">COMMITTED</span>'
+        : '<span class="badge preview">'+status+'</span>';
+
+      tr.innerHTML=
+        '<td>'+b.batch_id+'</td>'+
+        '<td>'+(b.source_label||b.source_type||'')+'</td>'+
+        '<td>'+(b.file_name||'')+'</td>'+
+        '<td>'+(b.uploaded_by||'')+'</td>'+
+        '<td>'+(b.uploaded_at||'')+'</td>'+
+        '<td>'+(b.total_rows||0)+'</td>'+
+        '<td>'+(b.valid_rows||0)+'</td>'+
+        '<td>'+(b.error_rows||0)+'</td>'+
+        '<td>'+statusHtml+'</td>'+
+        '<td></td>';
+
+      const act=tr.lastElementChild;
+
+      if(status==='COMMITTED'){
+        act.textContent='Đã nạp';
+      }else if(status==='PREVIEW' && Number(b.error_rows||0)===0){
+        const btn=document.createElement('button');
+        btn.className='primary';
+        btn.textContent='Xác nhận nạp';
+        btn.onclick=async function(){
+          await commitSpecific(b.storage,b.batch_id);
+        };
+        act.appendChild(btn);
+      }
+
+      tb.appendChild(tr);
+    });
+  }
+
+  async function commitSpecific(storage,batchId){
+    let endpoint;
+
+    if(storage==='xb_src_batch_v2'){
+      endpoint='/api/xb-v5/xb_src_batch_v2/batch/'+batchId+'/commit';
+    }else if(storage==='xb_dms_mbw_batch'){
+      endpoint='/api/xb-v5/xb_dms_mbw_batch/batch/'+batchId+'/commit';
+    }else{
+      alert('Nguồn này chưa nối Commit hợp nhất.');
+      return;
+    }
+
+    const r=await fetch(endpoint,{method:'POST',cache:'no-store'});
+    const x=await r.json();
+
+    if(!r.ok){
+      alert(x.detail||'Không Commit được Batch');
+      return;
+    }
+
+    alert('Đã Commit Batch '+batchId+' – '+(x.valid_rows||0)+' dòng hợp lệ.');
+    await loadHistory();
+  }
+
+  uploadBtn.addEventListener('click',function(){
+    const inp=document.createElement('input');
+    inp.type='file';
+    inp.accept='.xlsx';
+
+    inp.onchange=async function(){
+      if(!inp.files||!inp.files[0])return;
+
+      const f=inp.files[0];
+      const cfg=CONFIG[source.value];
+
+      const r=await fetch(cfg.preview,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'X-File-Name':encodeURIComponent(f.name),
+          'X-Uploaded-By':'pilot'
+        },
+        body:f
+      });
+
+      const x=await r.json();
+
+      if(!r.ok){
+        alert(x.detail||'Upload lỗi');
+        return;
+      }
+
+      if(x.duplicate){
+        alert('File đã được nạp trước đó ở Batch '+x.duplicate_batch_id);
+        await loadHistory();
+        return;
+      }
+
+      currentBatch=x.batch_id;
+      currentStorage=cfg.storage;
+
+      document.getElementById('previewCard').style.display='block';
+      document.getElementById('total').textContent=x.total_rows||0;
+      document.getElementById('valid').textContent=x.valid_rows||0;
+      document.getElementById('errors').textContent=x.error_rows||0;
+      document.getElementById('batch').textContent=x.batch_id||'-';
+      document.getElementById('message').textContent=(x.structure_errors||[]).join('; ');
+
+      const pb=document.getElementById('previewBody');
+      pb.innerHTML='';
+
+      (x.preview||[]).forEach(function(p){
+        const tr=document.createElement('tr');
+        tr.innerHTML=
+          '<td>'+(p.sheet||'')+'</td>'+
+          '<td>'+(p.row_no||'')+'</td>'+
+          '<td class="'+(p.status==='VALID'?'ok':'err')+'">'+(p.status||'')+'</td>'+
+          '<td>'+(p.error||'')+'</td>';
+        pb.appendChild(tr);
+      });
+
+      commitBtn.disabled=Number(x.error_rows||0)>0;
+      await loadHistory();
+    };
+
+    inp.click();
+  });
+
+  commitBtn.addEventListener('click',async function(){
+    if(!currentBatch||!currentStorage){
+      alert('Chưa có Batch hợp lệ để nạp.');
+      return;
+    }
+    await commitSpecific(currentStorage,currentBatch);
+  });
+
+  historyBtn.addEventListener('click',loadHistory);
+  source.addEventListener('change',syncSource);
+
+  syncSource();
+  loadHistory();
+})();
+</script>
+
+<script id="vg-xb-misa-v6">
+(function(){
+ const source=document.getElementById('sourceType');
+ const oldUpload=document.getElementById('uploadBtn');
+ if(!source||!oldUpload)return;
+
+ const btn=oldUpload.cloneNode(true);
+ oldUpload.parentNode.replaceChild(btn,oldUpload);
+
+ let currentBatch=null;
+ let currentSource=null;
+
+ async function historyV6(){
+   const r=await fetch('/api/xb-v6/history',{cache:'no-store'});
+   const x=await r.json();
+   if(!r.ok)return;
+   const tb=document.getElementById('historyBody');
+   if(!tb)return;
+   tb.innerHTML='';
+
+   (x.rows||[]).forEach(function(b){
+     const tr=document.createElement('tr');
+     const st=String(b.status||'').toUpperCase();
+     const statusHtml=st==='COMMITTED'
+       ? '<span class="badge committed">COMMITTED</span>'
+       : '<span class="badge preview">'+st+'</span>';
+
+     tr.innerHTML=
+       '<td>'+b.batch_id+'</td>'+
+       '<td>'+b.source_label+'</td>'+
+       '<td>'+b.file_name+'</td>'+
+       '<td>'+(b.uploaded_by||'')+'</td>'+
+       '<td>'+b.uploaded_at+'</td>'+
+       '<td>'+b.total_rows+'</td>'+
+       '<td>'+b.valid_rows+'</td>'+
+       '<td>'+b.error_rows+'</td>'+
+       '<td>'+statusHtml+'</td>'+
+       '<td>'+(st==='COMMITTED'?'Đã nạp':'')+'</td>';
+
+     tb.appendChild(tr);
+   });
+ }
+
+ btn.addEventListener('click',function(){
+   const inp=document.createElement('input');
+   inp.type='file';
+   inp.accept='.xlsx';
+   inp.onchange=async function(){
+     if(!inp.files||!inp.files[0])return;
+     const f=inp.files[0];
+     let endpoint='';
+     if(source.value==='dms-xa') endpoint='/api/xb-v2/dms-xa/preview';
+     else endpoint='/api/xb-misa-bu/preview';
+
+     const r=await fetch(endpoint,{
+       method:'POST',
+       headers:{
+         'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+         'X-File-Name':encodeURIComponent(f.name),
+         'X-Uploaded-By':'pilot'
+       },
+       body:f
+     });
+     const x=await r.json();
+     if(!r.ok){alert(x.detail||'Upload lỗi');return}
+     if(x.duplicate){alert('File đã nạp trước đó ở Batch '+x.duplicate_batch_id);historyV6();return}
+
+     currentBatch=x.batch_id;
+     currentSource=source.value;
+
+     document.getElementById('previewCard').style.display='block';
+     document.getElementById('total').textContent=x.total_rows||0;
+     document.getElementById('valid').textContent=x.valid_rows||0;
+     document.getElementById('errors').textContent=x.error_rows||0;
+     document.getElementById('batch').textContent=x.batch_id||'-';
+     document.getElementById('message').textContent=(x.structure_errors||[]).join('; ');
+
+     const pb=document.getElementById('previewBody');
+     pb.innerHTML='';
+     (x.preview||[]).forEach(function(p){
+       const tr=document.createElement('tr');
+       tr.innerHTML=
+         '<td>'+(p.sheet||'')+'</td>'+
+         '<td>'+(p.row_no||'')+'</td>'+
+         '<td class="'+(p.status==='VALID'?'ok':'err')+'">'+(p.status||'')+'</td>'+
+         '<td>'+(p.error||'')+'</td>';
+       pb.appendChild(tr);
+     });
+
+     const cb=document.getElementById('commitBtn');
+     cb.disabled=Number(x.error_rows||0)>0;
+     historyV6();
+   };
+   inp.click();
+ });
+
+ const oldCommit=document.getElementById('commitBtn');
+ if(oldCommit){
+   const cb=oldCommit.cloneNode(true);
+   oldCommit.parentNode.replaceChild(cb,oldCommit);
+   cb.addEventListener('click',async function(){
+     if(!currentBatch){alert('Chưa có Batch hợp lệ');return}
+     let endpoint='';
+     if(currentSource==='dms-xa') endpoint='/api/xb-v5/xb_src_batch_v2/batch/'+currentBatch+'/commit';
+     else endpoint='/api/xb-misa-bu/batch/'+currentBatch+'/commit';
+
+     const r=await fetch(endpoint,{method:'POST'});
+     const x=await r.json();
+     if(!r.ok){alert(x.detail||'Commit lỗi');return}
+     alert('Đã Commit Batch '+currentBatch+' – '+(x.valid_rows||0)+' dòng.');
+     historyV6();
+   });
+ }
+
+ const hb=document.getElementById('historyBtn');
+ if(hb){
+   const h=hb.cloneNode(true);
+   hb.parentNode.replaceChild(h,hb);
+   h.addEventListener('click',historyV6);
+ }
+
+ window.vgXBHistoryV6=historyV6;
+ setTimeout(historyV6,200);
+})();
+</script>
+
+
+<script id="vg-xb-mapping-audit">
+(function(){
+  const host=document.querySelector('.wrap');
+  if(!host)return;
+
+  const card=document.createElement('div');
+  card.className='card';
+  card.innerHTML=`
+    <h3>Kiểm tra Mapping sau Commit</h3>
+    <div class="sub">Đối chiếu SKU, mã NV nghiệp vụ và mã KH nguồn với Master Data.</div>
+    <div class="row">
+      <button id="mappingAuditBtn" class="primary">Chạy kiểm tra Mapping</button>
+      <a id="mappingExportBtn" class="btn" href="/api/xb-mapping/errors.xlsx">Xuất ngoại lệ Excel</a>
+    </div>
+    <div id="mappingSummary" class="stats" style="display:none">
+      <div class="stat">Tổng dòng<b id="mTotal">0</b></div>
+      <div class="stat">MAP_OK<b id="mOk">0</b></div>
+      <div class="stat">Chưa map SKU<b id="mSku">0</b></div>
+      <div class="stat">Chưa map NV<b id="mNv">0</b></div>
+    </div>
+    <div id="mappingSummary2" class="stats" style="display:none">
+      <div class="stat">Chưa map KH<b id="mKh">0</b></div>
+      <div class="stat">Cần xác nhận KH<b id="mKh2">0</b></div>
+    </div>
+    <div style="overflow:auto;margin-top:12px">
+      <table>
+        <thead><tr>
+          <th>Nguồn</th><th>Batch</th><th>Dòng</th><th>SKU</th>
+          <th>NV nguồn</th><th>NV chuẩn</th>
+          <th>KH nguồn</th><th>KH chuẩn</th><th>Kết quả</th>
+        </tr></thead>
+        <tbody id="mappingBody"></tbody>
+      </table>
+    </div>
+  `;
+
+  host.appendChild(card);
+
+  document.getElementById('mappingAuditBtn').addEventListener('click',async function(){
+    const btn=this;
+    btn.disabled=true;
+    btn.textContent='Đang kiểm tra...';
+
+    try{
+      const r=await fetch('/api/xb-mapping/audit',{cache:'no-store'});
+      const x=await r.json();
+      if(!r.ok)throw new Error(x.detail||'Không chạy được Mapping');
+
+      const s=x.summary||{};
+      document.getElementById('mappingSummary').style.display='grid';
+      document.getElementById('mappingSummary2').style.display='grid';
+      document.getElementById('mTotal').textContent=s.TOTAL||0;
+      document.getElementById('mOk').textContent=s.MAP_OK||0;
+      document.getElementById('mSku').textContent=s.CHUA_MAP_SKU||0;
+      document.getElementById('mNv').textContent=s.CHUA_MAP_NV||0;
+      document.getElementById('mKh').textContent=s.CHUA_MAP_KH||0;
+      document.getElementById('mKh2').textContent=s.CAN_XAC_NHAN_KH||0;
+
+      const tb=document.getElementById('mappingBody');
+      tb.innerHTML='';
+      (x.rows||[]).filter(q=>q.STATUS!=='MAP_OK').slice(0,200).forEach(function(q){
+        const tr=document.createElement('tr');
+        tr.innerHTML=
+          '<td>'+q.SOURCE+'</td>'+
+          '<td>'+q.BATCH+'</td>'+
+          '<td>'+q.ROW_NO+'</td>'+
+          '<td>'+q.MA_SKU_NGUON+'</td>'+
+          '<td>'+q.MA_NV_NGUON+'</td>'+
+          '<td>'+q.MA_NV_CHUAN+'</td>'+
+          '<td>'+q.MA_KH_NGUON+'</td>'+
+          '<td>'+q.MA_KH_CHUAN+'</td>'+
+          '<td class="err">'+q.STATUS+'</td>';
+        tb.appendChild(tr);
+      });
+
+      if((s.CHUA_MAP_SKU||0)+(s.CHUA_MAP_NV||0)+(s.CHUA_MAP_KH||0)+(s.CAN_XAC_NHAN_KH||0)===0){
+        alert('Mapping PASS: toàn bộ dữ liệu đã map được.');
+      }
+    }catch(e){
+      alert('Lỗi kiểm tra Mapping: '+e.message);
+    }finally{
+      btn.disabled=false;
+      btn.textContent='Chạy kiểm tra Mapping';
+    }
+  });
+})();
+</script>
+
+
+<script id="vg-xb-missing-master-export">
+(function(){
+  const auditBtn=document.getElementById('mappingAuditBtn');
+  if(!auditBtn)return;
+
+  const row=auditBtn.parentElement;
+  if(!row)return;
+
+  if(document.getElementById('missingMasterExportBtn'))return;
+
+  const a=document.createElement('a');
+  a.id='missingMasterExportBtn';
+  a.className='btn';
+  a.href='/api/xb-mapping/missing-master.xlsx';
+  a.textContent='Xuất danh sách cần bổ sung danh mục';
+  row.appendChild(a);
+})();
+</script>
+
+
+<script id="vg-xb-replace-batch">
+(function(){
+ const source=document.getElementById('sourceType');
+ if(!source)return;
+
+ let replaceOldBatch=null;
+ let replaceSource=null;
+
+ function previewEndpoint(st){
+   if(st==='dms-xa') return '/api/xb-v2/dms-xa/preview';
+   if(st==='misa-ban-bu') return '/api/xb-misa-bu/preview';
+   return null;
+ }
+
+ function commitEndpoint(st,bid){
+   if(st==='dms-xa') return '/api/xb-v5/xb_src_batch_v2/batch/'+bid+'/commit';
+   if(st==='misa-ban-bu') return '/api/xb-misa-bu/batch/'+bid+'/commit';
+   return null;
+ }
+
+ async function loadReplaceHistory(){
+   const r=await fetch('/api/xb-replace/history',{cache:'no-store'});
+   const x=await r.json();
+   if(!r.ok)return;
+
+   const tb=document.getElementById('historyBody');
+   if(!tb)return;
+   tb.innerHTML='';
+
+   (x.rows||[]).forEach(function(b){
+     const st=String(b.status||'').toUpperCase();
+     let statusText=st;
+     if(st==='SUPERSEDED') statusText='SUPERSEDED';
+
+     const tr=document.createElement('tr');
+     tr.innerHTML=
+       '<td>'+b.batch_id+'</td>'+
+       '<td>'+b.source_label+'</td>'+
+       '<td>'+b.file_name+'</td>'+
+       '<td>'+(b.uploaded_by||'')+'</td>'+
+       '<td>'+b.uploaded_at+'</td>'+
+       '<td>'+b.total_rows+'</td>'+
+       '<td>'+b.valid_rows+'</td>'+
+       '<td>'+b.error_rows+'</td>'+
+       '<td><b>'+statusText+'</b></td>'+
+       '<td></td>';
+
+     const act=tr.lastElementChild;
+
+     if(st==='COMMITTED' && b.source_type!=='dms-mbw'){
+       const btn=document.createElement('button');
+       btn.className='primary';
+       btn.textContent='Upload lại / Thay thế Batch';
+       btn.onclick=async function(){
+         if(!confirm('Thay thế Batch '+b.batch_id+'? Batch cũ sẽ được giữ lại và chuyển SUPERSEDED sau khi Batch mới Commit.'))return;
+
+         const prep=await fetch('/api/xb-replace/'+encodeURIComponent(b.source_type)+'/'+b.batch_id+'/prepare',{method:'POST'});
+         const px=await prep.json();
+         if(!prep.ok){alert(px.detail||'Không chuẩn bị được thay thế');return}
+
+         replaceOldBatch=b.batch_id;
+         replaceSource=b.source_type;
+         source.value=b.source_type;
+         source.dispatchEvent(new Event('change'));
+
+         const inp=document.createElement('input');
+         inp.type='file';
+         inp.accept='.xlsx';
+
+         inp.onchange=async function(){
+           if(!inp.files||!inp.files[0])return;
+           const f=inp.files[0];
+           const ep=previewEndpoint(replaceSource);
+
+           const rr=await fetch(ep,{
+             method:'POST',
+             headers:{
+               'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+               'X-File-Name':encodeURIComponent(f.name),
+               'X-Uploaded-By':'pilot'
+             },
+             body:f
+           });
+           const xx=await rr.json();
+
+           if(!rr.ok){alert(xx.detail||'Upload file thay thế lỗi');return}
+           if(xx.duplicate){
+             alert('File này trùng với Batch đã COMMITTED '+xx.duplicate_batch_id+'. Hãy chọn file đã sửa.');
+             return;
+           }
+           if(Number(xx.error_rows||0)>0){
+             alert('File thay thế còn '+xx.error_rows+' lỗi. Chưa Commit.');
+             return;
+           }
+
+           if(!confirm('File thay thế hợp lệ '+xx.valid_rows+' dòng. Commit Batch mới '+xx.batch_id+'?'))return;
+
+           const ce=commitEndpoint(replaceSource,xx.batch_id);
+           const cr=await fetch(ce,{method:'POST'});
+           const cx=await cr.json();
+           if(!cr.ok){alert(cx.detail||'Commit Batch mới lỗi');return}
+
+           const fr=await fetch(
+             '/api/xb-replace/'+encodeURIComponent(replaceSource)+'/'+replaceOldBatch+'/'+xx.batch_id+'/finalize',
+             {method:'POST'}
+           );
+           const fx=await fr.json();
+           if(!fr.ok){alert(fx.detail||'Không đánh dấu thay thế được');return}
+
+           alert(
+             'Thay thế thành công.\\nBatch cũ '+replaceOldBatch+' -> SUPERSEDED'+
+             '\\nBatch mới '+xx.batch_id+' -> COMMITTED'
+           );
+           replaceOldBatch=null;
+           replaceSource=null;
+           loadReplaceHistory();
+         };
+         inp.click();
+       };
+       act.appendChild(btn);
+     }else if(st==='COMMITTED' && b.source_type==='dms-mbw'){
+       act.textContent='Dữ liệu cũ – đơn giao thật nạp tại UI02';
+     }else if(st==='SUPERSEDED'){
+       act.textContent='Đã thay bởi Batch '+(b.superseded_by_batch_id||'');
+     }else if(st==='PREVIEW'){
+       act.textContent='Chưa chốt';
+     }
+
+     tb.appendChild(tr);
+   });
+ }
+
+ const hb=document.getElementById('historyBtn');
+ if(hb){
+   const n=hb.cloneNode(true);
+   hb.parentNode.replaceChild(n,hb);
+   n.addEventListener('click',loadReplaceHistory);
+ }
+
+ window.vgXBReplaceHistory=loadReplaceHistory;
+ setTimeout(loadReplaceHistory,250);
+})();
+</script>
+
+<div style="margin-top:12px"><a class="btn" href="/ui/XB_UI02.html">Mở XB-UI02 – Báo cáo tổng hợp Xả – Bán bù</a></div>
+
+<script>
+// ===== XB DMS/MBW COMMIT BUTTON V1 =====
+(function(){
+  async function postCommit(batchId){
+    if(!confirm(`Chốt batch DMS/MBW #${batchId}? Sau khi chốt, batch này sẽ trở thành nguồn COMMITTED.`)) return;
+
+    try{
+      const r=await fetch(`/api/xb-dms-mbw/batch/${batchId}/commit`,{
+        method:"POST"
+      });
+      const t=await r.text();
+      let x;
+      try{x=JSON.parse(t)}catch{x=t}
+      if(!r.ok) throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+
+      alert(`Đã Commit batch #${batchId}`);
+      location.reload();
+    }catch(e){
+      alert("Lỗi Commit: "+e.message);
+    }
+  }
+
+  function enhanceCommitButtons(){
+    const tables=[...document.querySelectorAll("table")];
+
+    for(const table of tables){
+      const head=[...table.querySelectorAll("thead th")].map(x=>x.textContent.trim().toUpperCase());
+      if(!head.includes("BATCH") || !head.includes("TRẠNG THÁI") || !head.includes("THAO TÁC")) continue;
+
+      const batchIdx=head.indexOf("BATCH");
+      const statusIdx=head.indexOf("TRẠNG THÁI");
+      const actionIdx=head.indexOf("THAO TÁC");
+
+      [...table.querySelectorAll("tbody tr")].forEach(tr=>{
+        const td=[...tr.querySelectorAll("td")];
+        if(td.length<=Math.max(batchIdx,statusIdx,actionIdx)) return;
+
+        const batchId=td[batchIdx].textContent.trim();
+        const status=td[statusIdx].textContent.trim().toUpperCase();
+        const actionCell=td[actionIdx];
+
+        if(status!=="PREVIEW") return;
+        if(td.some(cell=>cell.textContent.includes("DMS/MBW"))) return;
+        if(actionCell.querySelector(".xbCommitBtnV1")) return;
+
+        const b=document.createElement("button");
+        b.className="xbCommitBtnV1";
+        b.textContent="Commit / Chốt batch";
+        b.style.cssText="margin-left:6px;padding:7px 10px;background:#1769e0;color:white;border:0;border-radius:7px;cursor:pointer";
+        b.onclick=()=>postCommit(batchId);
+        actionCell.appendChild(b);
+      });
+    }
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(enhanceCommitButtons,300));
+  }else{
+    setTimeout(enhanceCommitButtons,300);
+  }
+
+  // UI history can load asynchronously; observe only row additions.
+  const obs=new MutationObserver(()=>enhanceCommitButtons());
+  obs.observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+
+<script>
+// ===== SOURCE SCOPE CLEANUP V1 UI =====
+(function(){
+  async function getSSC1(path){
+    const r=await fetch(path);
+    const t=await r.text();
+    let x;
+    try{x=JSON.parse(t)}catch{x=t}
+    if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+    return x;
+  }
+
+  function installSSC1(){
+    if(document.getElementById("sourceScopePanelV1"))return;
+
+    const mappingTitle=[...document.querySelectorAll("h2,h3,b")]
+      .find(x=>(x.textContent||"").includes("Kiểm tra Mapping"));
+    if(!mappingTitle)return;
+
+    const host=mappingTitle.closest("div");
+    if(!host)return;
+
+    const box=document.createElement("div");
+    box.id="sourceScopePanelV1";
+    box.style.cssText="margin-top:12px;padding:10px;border:1px solid #dbe3ee;border-radius:10px;background:#f8fafc";
+    box.innerHTML=`
+      <div style="font-weight:700;margin-bottom:7px">Phạm vi nguồn</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="scopeSelectV1" style="padding:7px 9px">
+          <option value="DMS_MBW">DMS/MBW mới</option>
+          <option value="DMS_XA_LEGACY">DMS-Xả legacy</option>
+          <option value="MISA_BU">MISA-Bù</option>
+          <option value="ALL">Tất cả</option>
+        </select>
+        <button id="scopeCheckV1">Kiểm tra phạm vi</button>
+      </div>
+      <div id="scopeResultV1" style="margin-top:8px"></div>
+    `;
+    host.appendChild(box);
+
+    document.getElementById("scopeCheckV1").onclick=async()=>{
+      const s=document.getElementById("scopeSelectV1").value;
+      try{
+        const x=await getSSC1(`/api/qtgh-stable/xb/source-scope-v1/${s}`);
+        const data=s==="ALL"?x.sources:[x.source];
+        document.getElementById("scopeResultV1").innerHTML=
+          data.map(r=>`<div>
+            <b>${r.scope}</b> · Batch ${r.active_batch_id??"-"}
+            · ${Number(r.rows||0).toLocaleString("vi-VN")} dòng
+            · ${r.status||"NONE"}
+          </div>`).join("")+
+          `<div style="margin-top:5px;color:#067647">
+            QTGH scope: <b>${x.qtgh_source_scope||"DMS_MBW_ONLY"}</b>
+            · Dự kiến QTGH: <b>${Number(x.qtgh_expected_rows||0).toLocaleString("vi-VN")} dòng nguồn</b>
+          </div>`;
+      }catch(e){
+        document.getElementById("scopeResultV1").innerHTML=
+          `<span style="color:#b42318">${e.message}</span>`;
+      }
+    };
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(installSSC1,300));
+  }else{
+    setTimeout(installSSC1,300);
+  }
+})();
+</script>
+
+</body>
+</html>

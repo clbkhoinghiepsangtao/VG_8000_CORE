@@ -1,0 +1,73 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Đăng nhập - VĨNH GIANG</title><style>body{font-family:Arial;background:#f5f7fb;display:grid;place-items:center;height:100vh;margin:0}.box{background:white;border:1px solid #dfe4ec;border-radius:14px;padding:24px;width:360px}input,button{width:100%;padding:11px;margin-top:8px;box-sizing:border-box;border:1px solid #dfe4ec;border-radius:8px}button{background:#1769e0;color:white;border:0;font-weight:700}.muted{font-size:12px;color:#697386}.err{color:#b42318;font-size:12px;margin-top:8px}</style>
+<style id="vg-password-toggle-style">
+.vg-pass-wrap{display:flex;gap:6px;align-items:center;width:100%}
+.vg-pass-wrap input{flex:1;min-width:0}
+.vg-pass-toggle{white-space:nowrap;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#172033;cursor:pointer}
+.vg-temp-box{margin-top:10px;padding:12px;border:1px solid #f59e0b;background:#fff7ed;border-radius:9px}
+.vg-temp-password{font-size:20px;font-weight:800;letter-spacing:.6px;padding:8px 0;word-break:break-all}
+.vg-copy-btn{margin-left:8px}
+</style>
+
+<style id="vg-password-toggle-layout-v2">
+.vg-pass-wrap{
+  display:flex !important;
+  align-items:stretch !important;
+  gap:6px !important;
+  width:100% !important;
+}
+.vg-pass-wrap input{
+  flex:1 1 auto !important;
+  width:auto !important;
+  min-width:0 !important;
+  margin:0 !important;
+}
+.vg-pass-wrap .vg-pass-toggle{
+  flex:0 0 72px !important;
+  width:72px !important;
+  min-width:72px !important;
+  max-width:72px !important;
+  margin:0 !important;
+  padding:8px 10px !important;
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #cbd5e1 !important;
+  border-radius:7px !important;
+  cursor:pointer !important;
+  font-weight:600 !important;
+}
+</style>
+</head><body><div class="box"><h2>VĨNH GIANG</h2><div class="muted">Mini App V1.0 · Pilot LAN</div><input id="u" placeholder="Tài khoản"><input id="p" type="password" placeholder="Mật khẩu"><button onclick="go()">Đăng nhập</button><div id="e" class="err"></div></div><script>async function go(){e.textContent='';let r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});if(!r.ok){e.textContent='Sai tài khoản hoặc mật khẩu';return}let j=await r.json();localStorage.setItem('vg_token',j.token);localStorage.setItem('vg_user',JSON.stringify(j.user));location.href=j.user.must_change_password?'/change-password':'/';}</script>
+<script id="vg-password-toggle-js">
+(function(){
+  function enhancePasswordInput(input){
+    if(!input || input.dataset.vgToggleDone==="1") return;
+    input.dataset.vgToggleDone="1";
+    const wrap=document.createElement("div");
+    wrap.className="vg-pass-wrap";
+    input.parentNode.insertBefore(wrap,input);
+    wrap.appendChild(input);
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="vg-pass-toggle";
+    btn.textContent="Hiện";
+    btn.setAttribute("aria-label","Hiện hoặc ẩn mật khẩu");
+    btn.onclick=function(){
+      const show=input.type==="password";
+      input.type=show?"text":"password";
+      btn.textContent=show?"Ẩn":"Hiện";
+    };
+    wrap.appendChild(btn);
+  }
+  function init(){
+    document.querySelectorAll('input[type="password"]').forEach(enhancePasswordInput);
+  }
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",init);
+  }else{
+    init();
+  }
+  window.vgEnhancePasswordInputs=init;
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DM-UI01 – Danh mục & Quản trị hệ thống V2</title>
+<style>
+:root{--bg:#f7f9fc;--card:#fff;--b:#dfe3e8;--text:#17202a;--muted:#667085;--accent:#1769e0;--good:#0a7a49;--bad:#c62828}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1680px;margin:auto;padding:18px}.card{background:#fff;border:1px solid var(--b);border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 4px}.sub{font-size:13px;color:var(--muted);line-height:1.45}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabbtn{border:1px solid var(--b);background:#fff;border-radius:9px;padding:9px 12px;cursor:pointer}.tabbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:1px solid var(--b);background:#fff;border-radius:9px;padding:9px 13px;cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.grid{display:grid;gap:10px}.filters{grid-template-columns:repeat(6,minmax(140px,1fr))}
+label{font-size:12px;font-weight:700}input,select{width:100%;margin-top:5px;padding:9px;border:1px solid var(--b);border-radius:9px;background:#fff}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px 8px;border-bottom:1px solid var(--b);text-align:left;white-space:nowrap}th{font-size:11px;color:var(--muted)}.num{text-align:right}.good{color:var(--good);font-weight:700}.bad{color:var(--bad);font-weight:700}
+.hidden{display:none!important}.note{font-size:12px;color:var(--muted);line-height:1.5}.tree{font-family:ui-monospace,Consolas,monospace;line-height:1.8}.tree .node{padding-left:8px}.lvl1{padding-left:18px}.lvl2{padding-left:36px}.lvl3{padding-left:54px}
+.badge{display:inline-block;border:1px solid var(--b);border-radius:999px;padding:4px 8px;font-size:11px;color:var(--muted)}
+@media(max-width:1050px){.filters{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>DM-UI01 – Danh mục & Quản trị hệ thống</h1>
+    <div class="sub">Bản thiết kế V2: bổ sung lịch sử giá theo thời gian, mã nghiệp vụ 1-nhiều, cây vùng kinh doanh và cây địa bàn/tuyến nhiều cấp.</div>
+    <div class="tabs" style="margin-top:12px">
+      <button class="tabbtn active" data-tab="product">Sản phẩm</button>
+      <button class="tabbtn" data-tab="price">Bảng giá</button>
+      <button class="tabbtn" data-tab="staff">Nhân sự</button>
+      <button class="tabbtn" data-tab="staffmap">Mã nghiệp vụ NV</button>
+      <button class="tabbtn" data-tab="salesregion">Cơ cấu vùng kinh doanh</button>
+      <button class="tabbtn" data-tab="customer">Khách hàng</button>
+      <button class="tabbtn" data-tab="territory">Địa bàn / Tuyến</button>
+      <button class="tabbtn" data-tab="basic">BU / Nhãn / Mảng / Nhóm NV / Cửa hàng</button>
+
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="actions" style="margin-top:0">
+      <a id="templateBtn" href="/api/master-templates/dm01-product.xlsx" download onclick="event.stopImmediatePropagation();var a=document.querySelector('.tabbtn.active[data-tab]');var m={product:'dm01-product',price:'price',staff:'dm02-staff',staffmap:'dm02a-staff-map',salesregion:'sales-region',customer:'dm03-customer',territory:'territory',basic:'basic'};this.href='/api/master-templates/'+(m[a?a.dataset.tab:'product']||'dm01-product')+'.xlsx';" style="display:inline-block;text-decoration:none;color:inherit">Lấy mẫu Excel</a>
+      <button class="primary" id="uploadBtn">Upload file</button>
+      <button id="exportBtn">Xuất Excel</button>
+    </div>
+    <div class="note" style="margin-top:8px">Upload theo cơ chế upsert: mã mới → thêm mới; mã đã tồn tại → ghi đè/cập nhật; mã cũ không có trong file → giữ nguyên.</div>
+  </section>
+
+  <section id="product" class="tabpanel">
+    <div class="card">
+      <div class="grid filters">
+        <label>Tìm SKU / tên<input placeholder="SKU hoặc tên sản phẩm"/></label>
+        <label>Nhãn<select><option>Tất cả</option><option>101</option><option>103</option><option>111</option></select></label>
+        <label>BU<select><option>Tất cả</option><option>HC</option><option>PC</option><option>BE</option></select></label>
+        <label>Trạng thái<select><option>Tất cả</option><option>Đang kinh doanh</option><option>Ngừng</option></select></label>
+      </div>
+    </div>
+    <div class="card">
+      <b>DM01 – Danh mục sản phẩm chuẩn</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:1200px">
+          <thead><tr><th>Mã SKU</th><th>Tên SKU</th><th>Nhãn</th><th>BU</th><th>ĐVT</th><th class="num">SU/Thùng</th><th class="num">TL/SU</th><th class="num">TL/Thùng</th><th class="num">VAT</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td><b>SKU001</b></td><td>OMO Matic 3kg</td><td>101</td><td>HC</td><td>SU</td><td class="num">6</td><td class="num">3</td><td class="num">18</td><td class="num">8%</td><td class="good">Đang kinh doanh</td></tr>
+            <tr><td><b>SKU002</b></td><td>Comfort 3L</td><td>103</td><td>PC</td><td>SU</td><td class="num">6</td><td class="num">3</td><td class="num">18</td><td class="num">8%</td><td class="good">Đang kinh doanh</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="price" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>SKU<select><option>Tất cả</option><option>SKU001</option><option>SKU002</option></select></label>
+        <label>Hiệu lực tại ngày<input type="date" value="2026-08-31"/></label>
+        <label>Trạng thái<select><option>Tất cả</option><option>Đang hiệu lực</option><option>Sắp hiệu lực</option><option>Hết hiệu lực</option></select></label>
+      </div>
+      <div class="note" style="margin-top:8px">Khi giá thay đổi, chỉ cần thêm một dòng mới theo ngày hiệu lực. Hệ thống tự đóng dòng giá cũ vào ngày liền trước và không cho chồng lấn khoảng hiệu lực.</div>
+    </div>
+    <div class="card">
+      <b>Bảng giá chuẩn theo lịch sử SKU</b>
+      <span class="badge" style="margin-left:8px">Mã BG là ID kỹ thuật</span>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:1050px">
+          <thead><tr><th>ID</th><th>SKU</th><th>Từ ngày</th><th>Đến ngày</th><th class="num">Giá chưa VAT</th><th class="num">VAT</th><th class="num">Giá có VAT</th><th>Nguồn giá</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td>BG001</td><td><b>SKU001</b></td><td>01/01/2026</td><td>31/07/2026</td><td class="num">100</td><td class="num">8%</td><td class="num">108</td><td>DMS</td><td>Hết hiệu lực</td></tr>
+            <tr><td>BG002</td><td><b>SKU001</b></td><td>01/08/2026</td><td>—</td><td class="num">102</td><td class="num">8%</td><td class="num">110,16</td><td>DMS</td><td class="good">Đang hiệu lực</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="staff" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>Mã NV<input placeholder="VGxxx"/></label>
+        <label>Tên NV<input placeholder="Họ tên"/></label>
+        <label>Nhóm NV<select><option>Tất cả</option><option>Kinh doanh</option><option>Giao hàng</option><option>Lái xe</option><option>Admin</option><option>Bốc xếp nội bộ</option></select></label>
+        <label>Vùng kinh doanh<select><option>Tất cả</option><option>VG_01</option><option>VG_02</option><option>VG_03</option><option>VG_04</option><option>HASU</option><option>KHAC</option></select></label>
+        <label>Trạng thái<select><option>Tất cả</option><option>Đang làm</option><option>Nghỉ</option></select></label>
+      </div>
+    </div>
+    <div class="card">
+      <b>DM02 – Danh mục nhân sự</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:1150px">
+          <thead><tr><th>Mã NV</th><th>Tên NV</th><th>Nhóm</th><th>Vùng KD</th><th>Bộ phận</th><th>Mảng</th><th>Ngày vào</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td><b>VG206</b></td><td>Nguyễn Văn A</td><td>Kinh doanh</td><td>VG_01</td><td>KD Phân phối</td><td>U</td><td>01/03/2023</td><td class="good">Đang làm</td></tr>
+            <tr><td><b>VG501</b></td><td>Nguyễn Văn Bốc</td><td>Bốc xếp nội bộ</td><td>—</td><td>Kho</td><td>Kho vận</td><td>10/02/2024</td><td class="good">Đang làm</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="staffmap" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>Mã NV<select data-staffmap-field="MA_NV"><option value="">Tất cả</option></select></label>
+        <label>Loại mã<select data-staffmap-field="LOAI_MA"><option value="">Tất cả</option></select></label>
+        <label>Mã nghiệp vụ<select data-staffmap-field="MA_NGHIEP_VU"><option value="">Tất cả</option></select></label>
+        <label>Trạng thái<select data-staffmap-field="TRANG_THAI"><option value="">Tất cả</option></select></label>
+      </div>
+      <div class="note" style="margin-top:8px">Một nhân sự có thể có nhiều mã nghiệp vụ đang hiệu lực đồng thời, ví dụ cầm 2 máy bán hàng hoặc vừa có mã giao hàng vừa có mã lái xe.</div>
+    </div>
+    <div class="card">
+      <b>DM02A – Mã nghiệp vụ nhân sự</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:1000px">
+          <thead><tr><th>Mã NV</th><th>Loại mã</th><th>Mã nghiệp vụ</th><th>Hệ thống</th><th>Từ ngày</th><th>Đến ngày</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+          <tbody>
+            <tr><td><b>VG206</b></td><td>Nguyễn Văn A</td><td>Mã máy bán hàng</td><td><b>4185</b></td><td>DMS</td><td>01/01/2026</td><td>—</td><td class="good">Đang hiệu lực</td></tr>
+            <tr><td><b>VG206</b></td><td>Nguyễn Văn A</td><td>Mã máy bán hàng</td><td><b>4256</b></td><td>DMS</td><td>01/06/2026</td><td>—</td><td class="good">Đang hiệu lực</td></tr>
+            <tr><td><b>VG206</b></td><td>Nguyễn Văn A</td><td>Mã lái xe</td><td><b>LX018</b></td><td>GH</td><td>01/08/2026</td><td>—</td><td class="good">Đang hiệu lực</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="salesregion" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>Tìm vùng<input placeholder="U / VG_01 / HASU..."/></label>
+        <label>Cấp vùng<select><option>Tất cả</option><option>Cấp 1</option><option>Cấp 2</option></select></label>
+        <label>Quản lý<input placeholder="Mã/Tên quản lý"/></label>
+      </div>
+    </div>
+    <div class="card">
+      <b>Cơ cấu vùng kinh doanh dạng cây</b>
+      <div class="tree" style="margin-top:10px">
+        <div class="node">▾ <b>U</b> — Trưởng phòng: VG100</div>
+        <div class="node lvl1">├─ <b>VG_01</b> — Đội trưởng: VG110</div>
+        <div class="node lvl1">├─ <b>VG_02</b> — Đội trưởng: VG120</div>
+        <div class="node lvl1">├─ <b>VG_03</b> — Đội trưởng: VG130</div>
+        <div class="node lvl1">└─ <b>VG_04</b> — Đội trưởng: VG140</div>
+        <div class="node">▸ <b>HASU</b> — Quản lý: VG150</div>
+        <div class="node">▸ <b>KHAC</b> — Quản lý: VG160</div>
+      </div>
+    </div>
+    <div class="card">
+      <b>Dữ liệu vùng</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:900px">
+          <thead><tr><th>Mã vùng</th><th>Tên vùng</th><th>Vùng cha</th><th>Cấp</th><th>Mã quản lý</th><th>Vai trò quản lý</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td><b>U</b></td><td>Vùng U</td><td>—</td><td>1</td><td>VG100</td><td>Trưởng phòng</td><td class="good">Hoạt động</td></tr>
+            <tr><td><b>VG_01</b></td><td>Vùng VG01</td><td>U</td><td>2</td><td>VG110</td><td>Đội trưởng</td><td class="good">Hoạt động</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="customer" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>Mã KH chuẩn<input placeholder="KH000015"/></label>
+        <label>Mã DMS<input placeholder="3590510"/></label>
+        <label>Mã MBW<input placeholder="V00015"/></label>
+        <label>SĐT<input placeholder="10 số"/></label>
+        <label>Trạng thái<select><option>Tất cả</option><option>Bình thường</option><option>Nghi trùng khách hàng</option></select></label>
+      </div>
+    </div>
+    <div class="card">
+      <b>DM03 – Danh mục khách hàng</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:1250px">
+          <thead><tr>
+<th>Mã KH chuẩn</th>
+<th>Mã MBW</th>
+<th>Mã DMS</th>
+<th>Tên KH</th>
+<th>SĐT chính</th>
+<th>Địa chỉ</th>
+<th>Mã NVBH 01</th>
+<th>Mã NVBH 02</th>
+<th>Nhóm cửa hàng</th>
+<th>Loại cửa hàng</th>
+<th>Địa bàn/Tuyến</th>
+<th>Trạng thái</th>
+<th>Thao tác</th>
+</tr></thead>
+          <tbody>
+            <tr><td><b>KH000015</b></td><td>3590510</td><td>V00015</td><td>Cửa hàng Minh Anh</td><td>0987654321</td><td>VC</td><td>VG206</td><td class="good">Bình thường</td></tr>
+            <tr><td><b>KH000022</b></td><td>3590622</td><td>V00088</td><td>Tạp hóa Hòa</td><td>0912345678</td><td>TPBN</td><td>VG215</td><td class="bad">Nghi trùng KH</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="territory" class="tabpanel hidden">
+    <div class="card">
+      <div class="grid filters">
+        <label>Tìm địa bàn / tuyến<input placeholder="Bắc Ninh / Võ Cường / T001"/></label>
+        <label>Loại node<select><option>Tất cả</option><option>Tỉnh</option><option>Thành phố</option><option>Phường/Xã</option><option>Tuyến</option></select></label>
+        <label>Trạng thái<select><option>Tất cả</option><option>Hoạt động</option><option>Ngừng</option></select></label>
+      </div>
+    </div>
+    <div class="card">
+      <b>Cây Địa bàn / Tuyến</b>
+      <div class="tree" style="margin-top:10px">
+        <div class="node">▾ <b>VN</b> — Việt Nam</div>
+        <div class="node lvl1">▾ <b>BN</b> — Bắc Ninh</div>
+        <div class="node lvl2">▾ <b>TPBN</b> — TP Bắc Ninh</div>
+        <div class="node lvl3">▾ <b>VC</b> — Võ Cường</div>
+        <div class="node lvl3" style="padding-left:72px">├─ <b>T001</b> — Tuyến Võ Cường 1</div>
+        <div class="node lvl3" style="padding-left:72px">└─ <b>T002</b> — Tuyến Võ Cường 2</div>
+      </div>
+    </div>
+    <div class="card">
+      <b>Dữ liệu node địa bàn</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:900px">
+          <thead><tr><th>Mã</th><th>Tên</th><th>Mã cha</th><th>Cấp</th><th>Loại</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td><b>BN</b></td><td>Bắc Ninh</td><td>VN</td><td>2</td><td>Tỉnh</td><td class="good">Hoạt động</td></tr>
+            <tr><td><b>T001</b></td><td>Tuyến Võ Cường 1</td><td>VC</td><td>5</td><td>Tuyến</td><td class="good">Hoạt động</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="basic" class="tabpanel hidden">
+    <div class="card">
+      <b>Danh mục nền nhỏ</b>
+      <div class="table-wrap" style="margin-top:10px">
+        <table style="min-width:850px">
+          <thead><tr><th>Loại danh mục</th><th>Mã</th><th>Tên</th><th>Thứ tự</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+            <tr><td>BU</td><td>HC</td><td>Home Care</td><td>1</td><td class="good">Hoạt động</td></tr>
+            <tr><td>Nhãn</td><td>101</td><td>OMO</td><td>1</td><td class="good">Hoạt động</td></tr>
+            <tr><td>Mảng</td><td>U</td><td>Unilever</td><td>1</td><td class="good">Hoạt động</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="card hidden"></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+function toast(t){$('toast').textContent=t;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),1800)}
+document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabbtn').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.add('hidden'));
+  $(b.dataset.tab).classList.remove('hidden');
+});
+
+
+
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script id="vg-master-consolidated">
+(function(){
+ const CFG={
+  product:{key:'dm01-product',file:'DM01_San_pham_V1.0.xlsx',cols:['MA_SKU','TEN_SKU','MA_NHAN','BU','DVT_CO_SO','SO_SU_THUNG','TRONG_LUONG_SU','TRONG_LUONG_THUNG','VAT_RATE','TRANG_THAI'],keys:['MA_SKU']},
+  price:{key:'price',file:'Bang_gia_V1.0.xlsx',cols:['MA_SKU','TU_NGAY','DEN_NGAY','DON_GIA_CHUA_VAT','VAT_RATE','DON_GIA_CO_VAT','NGUON_GIA','TRANG_THAI'],keys:['MA_SKU','TU_NGAY']},
+  staff:{key:'dm02-staff',file:'DM02_Nhan_su_V1.0.xlsx',cols:['MA_NV','TEN_NV','NHOM_NV','MA_VUNG_KD','BO_PHAN','MANG_PHU_TRACH','NGAY_VAO','TRANG_THAI'],keys:['MA_NV']},
+  staffmap:{key:'dm02a-staff-map',file:'DM02A_Ma_nghiep_vu_NV_V1.0.xlsx',cols:['MA_NV','LOAI_MA','MA_NGHIEP_VU','HE_THONG','TU_NGAY','DEN_NGAY','TRANG_THAI'],keys:['MA_NV','LOAI_MA','MA_NGHIEP_VU','HE_THONG','TU_NGAY']},
+  salesregion:{key:'sales-region',file:'Co_cau_vung_kinh_doanh_V1.0.xlsx',cols:['MA_VUNG','TEN_VUNG','MA_VUNG_CHA','CAP_VUNG','MA_QUAN_LY','LOAI_QUAN_LY','TRANG_THAI'],keys:['MA_VUNG']},
+  customer:{key:'dm03-customer',file:'DM03_Khach_hang_V1.0.xlsx',cols:['MA_KH_CHUAN','MA_KH_MBW','MA_KH_DMS','TEN_KH','SDT_CHINH','DIA_CHI','MA_NVBH_01','MA_NVBH_02','MA_NHOM_CUA_HANG','MA_LOAI_CUA_HANG','MA_DIA_BAN','TRANG_THAI'],keys:['MA_KH_CHUAN']},
+  territory:{key:'territory',file:'Dia_ban_Tuyen_V1.0.xlsx',cols:['MA_DIA_BAN','TEN_DIA_BAN','MA_CHA','CAP','LOAI','TRANG_THAI'],keys:['MA_DIA_BAN']},
+  basic:{key:'basic',file:'BU_Nhan_Mang_V1.0.xlsx',cols:['LOAI_DANH_MUC','MA','TEN','MA_CHA','THU_TU','TRANG_THAI'],keys:['LOAI_DANH_MUC','MA']}
+ };
+
+ function activeTab(){
+  const a=document.querySelector('.tabbtn.active[data-tab]');
+  return a && CFG[a.dataset.tab] ? a.dataset.tab : 'product';
+ }
+ function cfg(){ return CFG[activeTab()]; }
+ function fmt(col,v){
+  if(v===null||v===undefined)return '';
+  if(col==='VAT_RATE'){
+   const n=Number(v); return isNaN(n)?String(v):(n*100).toFixed(0)+'%';
+  }
+  return String(v);
+ }
+ function normalize(v){return String(v==null?'':v).trim().toLowerCase();}
+
+ function populateStaffMapFilters(rows){
+  const panel=document.getElementById('staffmap');
+  if(!panel)return;
+  panel.querySelectorAll('[data-staffmap-field]').forEach(function(select){
+   const field=select.dataset.staffmapField, selected=select.value;
+   const values=[...new Set(rows.map(function(row){return String(row[field]??'').trim();}).filter(Boolean))]
+    .sort(function(a,b){return a.localeCompare(b,'vi',{numeric:true});});
+   select.replaceChildren(new Option('Tất cả',''));
+   values.forEach(function(value){select.add(new Option(value,value));});
+   if(values.includes(selected))select.value=selected;
+  });
+ }
+
+ async function loadRows(){
+  const tab=activeTab(), c=CFG[tab], panel=document.getElementById(tab);
+  if(!panel)return;
+  const table=panel.querySelector('table'); if(!table)return;
+  let tbody=table.querySelector('tbody');
+  if(!tbody){tbody=document.createElement('tbody');table.appendChild(tbody);}
+  try{
+   const r=await fetch('/api/master-data/'+c.key+'/rows',{cache:'no-store'});
+   const x=await r.json();
+   if(!r.ok) throw new Error(x.detail||'Lỗi tải dữ liệu');
+   tbody.innerHTML='';
+   const rows=x.rows||[];
+   if(tab==='staffmap')populateStaffMapFilters(rows);
+   if(!rows.length){
+    const tr=document.createElement('tr'),td=document.createElement('td');
+    td.colSpan=c.cols.length+1;td.textContent='Chưa có dữ liệu';td.style.textAlign='center';td.style.padding='16px';
+    tr.appendChild(td);tbody.appendChild(tr);return;
+   }
+   rows.forEach(function(row){
+    const tr=document.createElement('tr');
+    c.cols.forEach(function(col){
+     const td=document.createElement('td');td.textContent=fmt(col,row[col]);tr.appendChild(td);
+    });
+    const td=document.createElement('td');
+    const b=document.createElement('button');
+    b.textContent='Xóa';
+    b.style.cssText='padding:5px 10px;border:1px solid #dc3545;color:#dc3545;background:#fff;border-radius:6px;cursor:pointer';
+    b.onclick=async function(){
+     const bk=c.keys.map(function(k){return String(row[k]??'').trim();}).join('||');
+     if(!confirm('Xóa bản ghi '+bk+' ?'))return;
+     const rr=await fetch('/api/master-data/'+c.key+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({business_key:bk})});
+     const xx=await rr.json();
+     if(!rr.ok){alert(xx.detail||'Không xóa được');return;}
+     await loadRows(); applyFilters();
+    };
+    td.appendChild(b);tr.appendChild(td);tbody.appendChild(tr);
+   });
+   applyFilters();
+  }catch(e){console.error(e);}
+ }
+
+ function visibleFilterControls(){
+  const panel=document.getElementById(activeTab()); if(!panel)return[];
+  return Array.from(panel.querySelectorAll('.filters input,.filters select')).filter(function(el){
+   return el.type!=='file'&&el.offsetParent!==null;
+  });
+ }
+ function applyFilters(){
+  const panel=document.getElementById(activeTab()); if(!panel)return;
+  const table=panel.querySelector('table'); if(!table)return;
+  const terms=visibleFilterControls().map(function(el){
+   const v=normalize(el.value);
+   return (!v||v==='tất cả'||v==='tat ca'||v==='all')?'':v;
+  }).filter(Boolean);
+  const exact=activeTab()==='staffmap'?Array.from(panel.querySelectorAll('[data-staffmap-field]'))
+   .map(function(el){return [CFG.staffmap.cols.indexOf(el.dataset.staffmapField),normalize(el.value)];})
+   .filter(function(pair){return pair[0]>=0&&pair[1];}):[];
+  table.querySelectorAll('tbody tr').forEach(function(tr){
+   const cells=tr.querySelectorAll('td');
+   if(cells.length===1){tr.style.display='';return;}
+   const txt=normalize(Array.from(cells).slice(0,-1).map(function(td){return td.textContent;}).join(' | '));
+   tr.style.display=exact.length
+    ?(exact.every(function(pair){return normalize(cells[pair[0]]?.textContent)===pair[1];})?'':'none')
+    :(terms.every(function(t){return txt.indexOf(t)>=0;})?'':'none');
+  });
+ }
+
+ function bindTemplate(){
+  const old=document.getElementById('templateBtn'); if(!old)return;
+  const b=old.cloneNode(true);old.parentNode.replaceChild(b,old);
+  b.addEventListener('click',function(e){
+   e.preventDefault(); const c=cfg();
+   const a=document.createElement('a');
+   a.href='/api/master-templates/'+c.key+'.xlsx';
+   a.download=c.file;document.body.appendChild(a);a.click();a.remove();
+  });
+ }
+ function bindUpload(){
+  const old=document.getElementById('uploadBtn'); if(!old)return;
+  const b=old.cloneNode(true);old.parentNode.replaceChild(b,old);
+  b.addEventListener('click',function(){
+   const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx';
+   inp.onchange=async function(){
+    if(!inp.files||!inp.files[0])return;
+    try{
+     const c=cfg();
+     const r=await fetch('/api/master-data/'+c.key+'/preview',{method:'POST',headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},body:inp.files[0]});
+     const x=await r.json();if(!r.ok)throw new Error(x.detail||'Lỗi upload');
+     const n=x.counts||{};
+     const text='KẾT QUẢ KIỂM TRA FILE\n\nThêm mới: '+(n.add||0)+'\nCập nhật: '+(n.update||0)+'\nLỗi: '+(n.error||0);
+     if((n.error||0)>0){alert(text+'\n\nFile còn lỗi, chưa nạp dữ liệu.');return;}
+     if(!confirm(text+'\n\nXác nhận nạp dữ liệu?'))return;
+     const cr=await fetch('/api/master-data/'+c.key+'/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:x.rows})});
+     const cx=await cr.json();if(!cr.ok)throw new Error(cx.detail||'Lỗi commit');
+     alert('Đã nạp '+(cx.committed||0)+' dòng dữ liệu.');
+     await loadRows();
+    }catch(e){alert('Không nạp được file: '+e.message);}
+   };
+   inp.click();
+  });
+ }
+ function bindExport(){
+  const old=document.getElementById('exportBtn'); if(!old)return;
+  const b=old.cloneNode(true);old.parentNode.replaceChild(b,old);
+  b.addEventListener('click',function(e){
+   e.preventDefault();const c=cfg();
+   const a=document.createElement('a');a.href='/api/master-data/'+c.key+'/export.xlsx';a.download='';document.body.appendChild(a);a.click();a.remove();
+  });
+ }
+
+ function bindFilters(){
+  document.querySelectorAll('input,select').forEach(function(el){
+   if(el.dataset.vgConsolidatedFilter==='1'||el.type==='file')return;
+   el.dataset.vgConsolidatedFilter='1';
+   el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters);
+  });
+ }
+
+ async function loadNhomNV(){
+  const panel=document.getElementById('staff'); if(!panel)return;
+  const selects=Array.from(panel.querySelectorAll('select'));
+  let target=null;
+  for(const s of selects){
+   const p=s.parentElement;if(p&&/nhóm\s*nv/i.test(p.textContent||'')){target=s;break;}
+  }
+  if(!target)return;
+  try{
+   const r=await fetch('/api/master-data/basic/rows',{cache:'no-store'});const x=await r.json();if(!r.ok)return;
+   const cur=target.value;
+   const rows=(x.rows||[]).filter(function(row){return String(row.LOAI_DANH_MUC||'').trim().toUpperCase()==='NHOM_NV'&&String(row.TRANG_THAI||'').trim().toUpperCase()!=='NGUNG';});
+   target.innerHTML='<option value="">Tất cả</option>';
+   rows.sort(function(a,b){return Number(a.THU_TU||9999)-Number(b.THU_TU||9999);}).forEach(function(row){
+    const op=document.createElement('option');op.value=String(row.MA||'').trim();op.textContent=String(row.TEN||row.MA||'').trim();target.appendChild(op);
+   });
+   if(Array.from(target.options).some(function(o){return o.value===cur;}))target.value=cur;
+  }catch(e){console.error(e);}
+ }
+
+ function init(){
+  bindTemplate();bindUpload();bindExport();bindFilters();
+  document.querySelectorAll('.tabbtn[data-tab]').forEach(function(btn){
+   btn.addEventListener('click',function(){
+    setTimeout(async function(){bindFilters();await loadRows();if(btn.dataset.tab==='staff')await loadNhomNV();},80);
+   });
+  });
+  loadRows();loadNhomNV();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+ window.vgReloadCurrentMaster=loadRows;
+})();
+</script>
+
+
+<script id="vg-price-live-view">
+(function(){
+ function pricePanel(){ return document.getElementById('price'); }
+
+ function findControls(){
+   const panel=pricePanel();
+   if(!panel) return {};
+   const selects=Array.from(panel.querySelectorAll('select'));
+   const inputs=Array.from(panel.querySelectorAll('input'));
+
+   let skuSelect=null, statusSelect=null, dateInput=null;
+
+   selects.forEach(function(s){
+     const txt=(s.parentElement?s.parentElement.textContent:'').toLowerCase();
+     if(!skuSelect && txt.indexOf('sku')>=0) skuSelect=s;
+     else if(!statusSelect && txt.indexOf('trạng thái')>=0) statusSelect=s;
+   });
+
+   inputs.forEach(function(i){
+     if(i.type==='date') dateInput=i;
+   });
+
+   return {skuSelect:skuSelect,statusSelect:statusSelect,dateInput:dateInput};
+ }
+
+ function norm(v){ return String(v==null?'':v).trim(); }
+
+ function toDate(v){
+   if(!v) return null;
+   const s=String(v).trim();
+   const d=new Date(s);
+   return isNaN(d.getTime()) ? null : d;
+ }
+
+ function fmtMoney(v){
+   const n=Number(v);
+   if(isNaN(n)) return norm(v);
+   return n.toLocaleString('vi-VN');
+ }
+
+ function fmtVat(v){
+   const n=Number(v);
+   if(isNaN(n)) return norm(v);
+   return (n*100).toFixed(0)+'%';
+ }
+
+ let PRICE_ROWS=[];
+
+ function ensureHeader(table){
+   const thead=table.querySelector('thead') || table.createTHead();
+   thead.innerHTML=
+    '<tr>'+
+    '<th>ID</th>'+
+    '<th>SKU</th>'+
+    '<th>Từ ngày</th>'+
+    '<th>Đến ngày</th>'+
+    '<th>Giá chưa VAT</th>'+
+    '<th>VAT</th>'+
+    '<th>Giá có VAT</th>'+
+    '<th>Nguồn giá</th>'+
+    '<th>Trạng thái</th>'+
+    '</tr>';
+ }
+
+ function populateFilters(rows){
+   const c=findControls();
+
+   if(c.skuSelect){
+     const current=c.skuSelect.value;
+     const skus=[...new Set(rows.map(function(r){return norm(r.MA_SKU);}).filter(Boolean))].sort();
+     c.skuSelect.innerHTML='<option value="">Tất cả</option>';
+     skus.forEach(function(sku){
+       const o=document.createElement('option');
+       o.value=sku;o.textContent=sku;c.skuSelect.appendChild(o);
+     });
+     if(skus.indexOf(current)>=0) c.skuSelect.value=current;
+   }
+
+   if(c.statusSelect){
+     const current=c.statusSelect.value;
+     const sts=[...new Set(rows.map(function(r){return norm(r.TRANG_THAI);}).filter(Boolean))].sort();
+     c.statusSelect.innerHTML='<option value="">Tất cả</option>';
+     sts.forEach(function(st){
+       const o=document.createElement('option');
+       o.value=st;o.textContent=st;c.statusSelect.appendChild(o);
+     });
+     if(sts.indexOf(current)>=0) c.statusSelect.value=current;
+   }
+ }
+
+ function filteredRows(){
+   const c=findControls();
+   const sku=c.skuSelect ? norm(c.skuSelect.value) : '';
+   const status=c.statusSelect ? norm(c.statusSelect.value) : '';
+   const atDate=c.dateInput && c.dateInput.value ? toDate(c.dateInput.value) : null;
+
+   return PRICE_ROWS.filter(function(r){
+     if(sku && norm(r.MA_SKU)!==sku) return false;
+     if(status && norm(r.TRANG_THAI)!==status) return false;
+
+     if(atDate){
+       const from=toDate(r.TU_NGAY);
+       const to=toDate(r.DEN_NGAY);
+       if(from && atDate < from) return false;
+       if(to && atDate > to) return false;
+     }
+     return true;
+   });
+ }
+
+ function render(){
+   const panel=pricePanel();
+   if(!panel) return;
+   const table=panel.querySelector('table');
+   if(!table) return;
+
+   ensureHeader(table);
+
+   let tbody=table.querySelector('tbody');
+   if(!tbody){ tbody=document.createElement('tbody'); table.appendChild(tbody); }
+   tbody.innerHTML='';
+
+   const rows=filteredRows();
+
+   if(!rows.length){
+     const tr=document.createElement('tr');
+     const td=document.createElement('td');
+     td.colSpan=9;
+     td.textContent='Chưa có dữ liệu phù hợp bộ lọc';
+     td.style.textAlign='center';
+     td.style.padding='16px';
+     tr.appendChild(td);
+     tbody.appendChild(tr);
+     return;
+   }
+
+   rows.forEach(function(r,idx){
+     const tr=document.createElement('tr');
+     const technicalId='BG'+String(idx+1).padStart(6,'0');
+     const vals=[
+       technicalId,
+       norm(r.MA_SKU),
+       norm(r.TU_NGAY),
+       norm(r.DEN_NGAY),
+       fmtMoney(r.DON_GIA_CHUA_VAT),
+       fmtVat(r.VAT_RATE),
+       fmtMoney(r.DON_GIA_CO_VAT),
+       norm(r.NGUON_GIA),
+       norm(r.TRANG_THAI)
+     ];
+     vals.forEach(function(v){
+       const td=document.createElement('td');
+       td.textContent=v;
+       tr.appendChild(td);
+     });
+     tbody.appendChild(tr);
+   });
+ }
+
+ async function loadPrice(){
+   try{
+     const r=await fetch('/api/master-data/price/rows',{cache:'no-store'});
+     const x=await r.json();
+     if(!r.ok) throw new Error(x.detail||'Lỗi tải Bảng giá');
+
+     PRICE_ROWS=x.rows||[];
+
+     PRICE_ROWS.sort(function(a,b){
+       const sa=norm(a.MA_SKU), sb=norm(b.MA_SKU);
+       if(sa<sb) return -1;
+       if(sa>sb) return 1;
+       const da=toDate(a.TU_NGAY), db=toDate(b.TU_NGAY);
+       return (db?db.getTime():0)-(da?da.getTime():0);
+     });
+
+     populateFilters(PRICE_ROWS);
+     render();
+
+     const c=findControls();
+     [c.skuSelect,c.statusSelect,c.dateInput].forEach(function(el){
+       if(!el || el.dataset.vgPriceBound==='1') return;
+       el.dataset.vgPriceBound='1';
+       el.addEventListener('change',render);
+       el.addEventListener('input',render);
+     });
+   }catch(e){
+     console.error('Price live view:',e);
+   }
+ }
+
+ document.querySelectorAll('.tabbtn[data-tab]').forEach(function(btn){
+   btn.addEventListener('click',function(){
+     if(btn.dataset.tab==='price') setTimeout(loadPrice,100);
+   });
+ });
+
+ if(document.readyState==='loading'){
+   document.addEventListener('DOMContentLoaded',function(){
+     const a=document.querySelector('.tabbtn.active[data-tab]');
+     if(a && a.dataset.tab==='price') setTimeout(loadPrice,150);
+   });
+ }else{
+   const a=document.querySelector('.tabbtn.active[data-tab]');
+   if(a && a.dataset.tab==='price') setTimeout(loadPrice,150);
+ }
+
+ window.vgReloadPriceTable=loadPrice;
+})();
+</script>
+
+</body>
+</html>

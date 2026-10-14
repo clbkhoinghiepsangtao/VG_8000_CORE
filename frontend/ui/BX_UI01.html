@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BX-UI01 V3.7</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#111827}
+.wrap{padding:18px}
+.panel{background:#fff;border:1px solid #dbe3ee;border-radius:14px;padding:16px;margin-bottom:14px}
+h1,h2{margin:0 0 8px}.sub{color:#667085;font-size:13px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}
+.tabs button.active{background:#1769e0;color:#fff;border-color:#1769e0}
+button,input,select,a.btn{padding:8px 10px;border:1px solid #cfd8e3;border-radius:8px;background:#fff;text-decoration:none;color:#111827}
+button{cursor:pointer}.primary{background:#1769e0;color:#fff;border-color:#1769e0}
+.hidden{display:none!important}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.scroll{overflow:auto;max-height:58vh}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+th{background:#f8fafc;text-align:left}.num{text-align:right}
+.bad{color:#b42318}.ok{color:#067647}
+.card{border:1px solid #dbe3ee;border-radius:10px;padding:10px}
+.pack{border:1px solid #cfd8e3;border-radius:12px;padding:14px;margin-top:14px;background:#fff}
+.matrix th{text-align:center}.matrix tfoot{font-weight:700;background:#f8fafc}
+.pricegrid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:8px;margin:10px 0}
+.suggest{position:absolute;z-index:30;left:0;top:40px;width:430px;max-height:230px;overflow:auto;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.suggest div{padding:8px;cursor:pointer;border-bottom:1px solid #eee}.suggest div:hover{background:#eef4ff}
+.chip{display:inline-flex;align-items:center;background:#eef4ff;border:1px solid #b8cff5;border-radius:999px;padding:5px 9px;margin:2px}
+.cards{display:flex;gap:10px;flex-wrap:wrap}.stat{border:1px solid #dbe3ee;border-radius:10px;padding:10px 14px;min-width:150px}.stat small{color:#667085}.stat b{display:block;font-size:18px;margin-top:4px}
+@media(max-width:1100px){.pricegrid{grid-template-columns:repeat(2,minmax(130px,1fr))}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="panel">
+  <h1>BX-UI01 V3.7 – Quản lý bốc xếp theo PACK</h1>
+  <div class="sub">Nạp MISA → Xác nhận chuyến → Tạo PACK → Chọn nhân sự/Thuê ngoài → Phân bổ → Tính tiền → In PACK → Báo cáo quyết toán.</div>
+</div>
+
+<div class="panel"><div class="tabs">
+  <button data-tab="t1" class="active">Tab 1 – Nạp MISA</button>
+  <button data-tab="t2">Tab 2 – Xác nhận chuyến</button>
+  <button data-tab="t3">Tab 3 – Lập PACK</button>
+  <button data-tab="t4">Tab 4 – Báo cáo</button>
+</div></div>
+
+<section id="t1">
+<div class="panel">
+<h2>Nạp dữ liệu MISA</h2>
+<div class="row">
+  <a class="btn" href="/api/qtgh-stable/bx-v2/template/boc-vao">Tải mẫu Bốc vào V2</a>
+  <a class="btn" href="/api/qtgh-stable/bx-v2/template/boc-ra">Tải mẫu Bốc ra V2</a>
+  <select id="src"><option value="boc-vao">Bốc vào – Đơn mua hàng</option><option value="boc-ra">Bốc ra bán buôn – Đơn bán hàng</option></select>
+  <input id="file" type="file" accept=".xlsx">
+  <button id="preview" class="primary">Preview / Kiểm tra</button>
+  <button id="commit" disabled>Commit</button>
+</div>
+<div id="uploadStatus" style="margin-top:10px"></div>
+<div id="previewBox" class="scroll" style="margin-top:10px"></div>
+</div>
+</section>
+
+<section id="t2" class="hidden">
+<div class="panel">
+<h2>Xác nhận chuyến</h2>
+<div class="row"><label>Từ ngày<br><input id="t2f" type="date"></label><label>Đến ngày<br><input id="t2t" type="date"></label><button id="t2reload">Tra cứu</button></div>
+</div>
+<div class="panel scroll"><table><thead><tr><th>Ngày</th><th>Chuyến</th><th>Nguồn</th><th>Kg</th><th>Phân loại</th><th>Trạng thái</th><th></th></tr></thead><tbody id="tripBody"></tbody></table></div>
+</section>
+
+<section id="t3" class="hidden">
+<div class="panel">
+<h2>Tạo PACK</h2>
+<div class="row">
+  <label>Ngày bốc hàng<br><input id="packDate" type="date"></label>
+  <button id="selectAll">Chọn tất cả</button><button id="clearAll">Bỏ chọn tất cả</button>
+  <span id="packCount" style="align-self:center;color:#667085"></span>
+</div>
+<div class="scroll" style="margin-top:10px"><table><thead><tr><th>Chọn</th><th>Ngày</th><th>Chuyến</th><th>Loại</th><th>Kg</th></tr></thead><tbody id="packTrips"></tbody></table></div>
+<button id="createPack" class="primary" style="margin-top:10px">Tạo PACK</button>
+</div>
+<div id="packList"></div>
+</section>
+
+<section id="t4" class="hidden">
+<div class="panel">
+<h2>Báo cáo quyết toán bốc xếp</h2>
+<div class="row">
+  <label>Từ ngày<br><input id="rf" type="date"></label>
+  <label>Đến ngày<br><input id="rt" type="date"></label>
+  <label>Tháng<br><input id="rm" type="month"></label>
+  <button id="reportBtn" class="primary">Tra cứu</button>
+  <button id="exportPeople">Xuất Excel Nhân sự</button>
+</div>
+</div>
+<div id="summaryCards" class="panel cards"></div>
+
+<div class="panel">
+<h2>Quyết toán thu nhập – Nhân sự nội bộ</h2>
+<div class="scroll"><table>
+<thead><tr><th>Mã NV</th><th>Tên NV</th><th>PACK</th><th>Kg chẵn</th><th>Kg lẻ</th><th>Kg bốc ra</th><th>Tổng kg</th><th>Tiền chẵn</th><th>Tiền lẻ</th><th>Tiền bốc ra</th><th>Tổng thu nhập</th></tr></thead>
+<tbody id="peopleBody"></tbody>
+</table></div>
+</div>
+
+<div class="panel">
+<h2>Thuê ngoài</h2>
+<div class="scroll"><table>
+<thead><tr><th>Ngày</th><th>PACK</th><th>Đơn vị/Người thuê ngoài</th><th>Chuyến</th><th>Kg chẵn</th><th>Kg lẻ</th><th>Kg bốc ra</th><th>Tổng kg</th><th>Thành tiền</th></tr></thead>
+<tbody id="externalBody"></tbody>
+</table></div>
+</div>
+
+<div class="panel">
+<h2>Đối chiếu theo PACK</h2>
+<div class="scroll"><table>
+<thead><tr><th>Ngày</th><th>PACK</th><th>Hình thức</th><th>Chuyến</th><th>Kg chẵn</th><th>Kg lẻ</th><th>Kg bốc ra</th><th>Tổng kg</th><th>Thành tiền</th></tr></thead>
+<tbody id="packsBody"></tbody>
+</table></div>
+</div>
+</section>
+</div>
+
+<script>
+(function(){
+const A="/api/qtgh-stable",$=id=>document.getElementById(id);
+const fmt=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:3}).format(Number(v||0));
+const money=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+let uploadBatch=null,file=null,trips=[],visibleTrips=[],staff=[],staffMap=new Map(),reportData=null;
+
+async function J(u,o){const r=await fetch(u,o),t=await r.text();let x;try{x=JSON.parse(t)}catch{x=t}if(!r.ok)throw Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));return x}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=async()=>{document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));b.classList.add("active");["t1","t2","t3","t4"].forEach(id=>$(id).classList.add("hidden"));$(b.dataset.tab).classList.remove("hidden");if(b.dataset.tab==="t2")await loadTrips();if(b.dataset.tab==="t3"){await loadTrips();await loadPacks()}if(b.dataset.tab==="t4")await loadReport()});
+
+// TAB1
+$("file").onchange=e=>{file=e.target.files?.[0]||null;uploadBatch=null;$("commit").disabled=true;$("uploadStatus").textContent=file?"Đã chọn: "+file.name:""};
+$("preview").onclick=async()=>{if(!file)return alert("Chọn file");try{const raw=await file.arrayBuffer();const x=await J(`${A}/bx-v2/preview/${$("src").value}?filename=${encodeURIComponent(file.name)}`,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:raw});uploadBatch=x.batch_id;$("commit").disabled=Number(x.error_rows||0)>0;$("uploadStatus").innerHTML=`Batch <b>#${x.batch_id}</b> · Dòng ${x.total_rows} · Hợp lệ ${x.valid_rows} · Lỗi ${x.error_rows}`;$("previewBox").innerHTML=`<table><tbody>${(x.trips||[]).map(r=>`<tr><td>${r.ngay_chung_tu}</td><td>${r.so_chung_tu}</td><td>${r.source_type}</td><td>${r.so_sku}</td><td>${fmt(r.tong_kg)} kg</td><td>${r.mapping_ok?"Đủ mapping":"Thiếu mapping"}</td></tr>`).join("")}</tbody></table>`}catch(e){$("uploadStatus").innerHTML=`<span class=bad>${e.message}</span>`}};
+$("commit").onclick=async()=>{if(!uploadBatch)return;try{await J(`${A}/bx-v2/batch/${uploadBatch}/commit`,{method:"POST"});$("uploadStatus").innerHTML="<b class=ok>Đã Commit</b>";$("commit").disabled=true}catch(e){alert(e.message)}};
+
+// TRIPS
+async function loadTrips(){const x=await J(A+"/bx-pack-v3/trips");trips=x.rows||[];renderT2();renderT3()}
+function renderT2(){const f=$("t2f").value,t=$("t2t").value,rows=trips.filter(r=>(!f||r.ngay_chung_tu>=f)&&(!t||r.ngay_chung_tu<=t));$("tripBody").innerHTML=rows.map((r,i)=>`<tr><td>${r.ngay_chung_tu}</td><td>${r.so_chung_tu}</td><td>${r.source_type}</td><td>${fmt(r.tong_kg)}</td><td>${r.source_type==="BOC_VAO"?`<select id="lc${i}"><option value="">--Chọn--</option><option value="BOC_VAO_CHAN" ${r.loai_boc==="BOC_VAO_CHAN"?"selected":""}>Bốc vào chẵn</option><option value="BOC_VAO_LE" ${r.loai_boc==="BOC_VAO_LE"?"selected":""}>Bốc vào lẻ</option></select>`:"Bốc ra bán buôn"}</td><td>${r.confirmed?"Đã xác nhận":"Chờ"}</td><td><button data-cf="${i}">Xác nhận</button></td></tr>`).join("");document.querySelectorAll("[data-cf]").forEach(b=>b.onclick=async()=>{const i=Number(b.dataset.cf),r=rows[i],loai=r.source_type==="BOC_RA_BAN_BUON"?"BOC_RA_BAN_BUON":$("lc"+i).value;if(!loai)return alert("Chọn Chẵn/Lẻ");await J(A+"/bx-pack-v3/trip/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source_type:r.source_type,so_chung_tu:r.so_chung_tu,ngay_chung_tu:r.ngay_chung_tu,loai_boc:loai})});loadTrips()})}
+$("t2reload").onclick=renderT2;$("t2f").onchange=renderT2;$("t2t").onchange=renderT2;
+
+function renderT3(){const d=$("packDate").value;visibleTrips=trips.filter(r=>r.confirmed&&!r.packed&&(!d||r.ngay_chung_tu===d));$("packCount").textContent=visibleTrips.length+" chuyến";$("packTrips").innerHTML=visibleTrips.map((r,i)=>`<tr><td><input type=checkbox class=pick data-i="${i}"></td><td>${r.ngay_chung_tu}</td><td>${r.so_chung_tu}</td><td>${r.loai_boc}</td><td>${fmt(r.tong_kg)}</td></tr>`).join("")}
+$("packDate").onchange=renderT3;$("selectAll").onclick=()=>document.querySelectorAll(".pick").forEach(x=>x.checked=true);$("clearAll").onclick=()=>document.querySelectorAll(".pick").forEach(x=>x.checked=false);
+$("createPack").onclick=async()=>{const p=[...document.querySelectorAll(".pick:checked")].map(x=>visibleTrips[Number(x.dataset.i)]);if(!p.length)return alert("Chọn chuyến");try{const x=await J(A+"/bx-pack-v3/create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({trips:p})});alert("Đã tạo "+x.pack_code);await loadTrips();await loadPacks()}catch(e){alert(e.message)}};
+
+// PACKS
+async function ensureStaff(){if(staff.length)return;const x=await J(A+"/bx-pack-v3/staff");staff=x.rows||[];staffMap=new Map(staff.map(s=>[String(s.ma_nv).toUpperCase(),s]))}
+function groupAlloc(p){const by={};(p.alloc||[]).forEach(a=>{by[a.participant_key]=by[a.participant_key]||{ma:a.ma_nv||"",type:a.participant_type,vals:{}};by[a.participant_key].vals[a.loai_boc]=a});return Object.values(by)}
+function allocTable(p){const rows=groupAlloc(p);if(!rows.length)return "";let s={ck:0,ct:0,lk:0,lt:0,ok:0,ot:0,tt:0};const body=rows.map(x=>{const c=x.vals.BOC_VAO_CHAN||{},l=x.vals.BOC_VAO_LE||{},o=x.vals.BOC_RA_BAN_BUON||{},tt=Number(c.thanh_tien||0)+Number(l.thanh_tien||0)+Number(o.thanh_tien||0);s.ck+=Number(c.kg||0);s.ct+=Number(c.thanh_tien||0);s.lk+=Number(l.kg||0);s.lt+=Number(l.thanh_tien||0);s.ok+=Number(o.kg||0);s.ot+=Number(o.thanh_tien||0);s.tt+=tt;const label=x.type==="EXTERNAL"?"THUÊ NGOÀI":`${x.ma} - ${staffMap.get(String(x.ma).toUpperCase())?.ten_nv||""}`;return `<tr><td>${label}</td><td>${fmt(c.kg)}</td><td>${money(c.thanh_tien)}</td><td>${fmt(l.kg)}</td><td>${money(l.thanh_tien)}</td><td>${fmt(o.kg)}</td><td>${money(o.thanh_tien)}</td><td>${money(tt)}</td></tr>`}).join("");return `<table class=matrix><thead><tr><th>Nhân sự</th><th>Chẵn kg</th><th>Tiền</th><th>Lẻ kg</th><th>Tiền</th><th>Bốc ra kg</th><th>Tiền</th><th>Tổng</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td>TỔNG</td><td>${fmt(s.ck)}</td><td>${money(s.ct)}</td><td>${fmt(s.lk)}</td><td>${money(s.lt)}</td><td>${fmt(s.ok)}</td><td>${money(s.ot)}</td><td>${money(s.tt)}</td></tr></tfoot></table>`}
+function packCard(p){return `<div class=pack><h2>${p.pack_code} · ${p.pack_date} · ${p.status}</h2><div>Chuyến: ${(p.trips||[]).map(x=>x.so_chung_tu).join(", ")}</div><div class=pricegrid><label>Hình thức<br><select id="mode${p.pack_id}"><option value=INTERNAL ${p.mode==="INTERNAL"?"selected":""}>Nội bộ</option><option value=EXTERNAL ${p.mode==="EXTERNAL"?"selected":""}>Thuê ngoài</option></select></label><label>ĐG chẵn<br><input id="pc${p.pack_id}" value="${p.price_in_chan}"></label><label>ĐG lẻ<br><input id="pl${p.pack_id}" value="${p.price_in_le}"></label><label>ĐG bốc ra<br><input id="po${p.pack_id}" value="${p.price_out}"></label><label>Lý do sửa giá<br><input id="reason${p.pack_id}" value="${p.price_change_reason||""}"></label><label>Thuê ngoài<br><input id="ext${p.pack_id}" value="${p.external_name||""}"></label></div><div class=card><b>Nhân sự tham gia PACK</b><div class=row><div style="position:relative"><input id="find${p.pack_id}" placeholder="Nhập mã NV"><div id="sg${p.pack_id}" class="suggest hidden"></div></div><button id="add${p.pack_id}">Thêm nhân sự</button><button id="apply${p.pack_id}">Chốt nhân sự / Phân bổ</button></div><div id="chips${p.pack_id}"></div></div><div class=row style="margin:10px 0"><button data-done="${p.pack_id}">Chốt PACK</button><button data-print="${p.pack_id}">In PACK</button></div>${allocTable(p)}</div>`}
+function wirePack(p){const pid=p.pack_id;let chosen=new Set((p.members||[]).map(x=>String(x).toUpperCase()));const find=$("find"+pid),sg=$("sg"+pid),chips=$("chips"+pid);function render(){chips.innerHTML=[...chosen].map(c=>`<span class=chip>${c} - ${staffMap.get(c)?.ten_nv||""}<button data-rm="${c}" style="border:0;background:transparent;color:#b42318">x</button></span>`).join("");chips.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{chosen.delete(b.dataset.rm);render()})}find.oninput=()=>{const q=find.value.toUpperCase().trim(),r=staff.filter(s=>String(s.ma_nv).toUpperCase().includes(q)).slice(0,10);if(!q){sg.classList.add("hidden");return}sg.innerHTML=r.map(s=>`<div data-p="${s.ma_nv}">${s.ma_nv} - ${s.ten_nv||""}</div>`).join("");sg.classList.remove("hidden");sg.querySelectorAll("[data-p]").forEach(d=>d.onclick=()=>{find.value=d.dataset.p;sg.classList.add("hidden")})};$("add"+pid).onclick=()=>{const c=find.value.toUpperCase().trim();if(!staffMap.has(c))return alert("Không tìm thấy mã NV");chosen.add(c);find.value="";render()};$("apply"+pid).onclick=async()=>{try{await J(`${A}/bx-pack-v3/${pid}/setup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:$("mode"+pid).value,price_in_chan:$("pc"+pid).value,price_in_le:$("pl"+pid).value,price_out:$("po"+pid).value,price_change_reason:$("reason"+pid).value,external_name:$("ext"+pid).value,members:[...chosen]})});loadPacks()}catch(e){alert(e.message)}};render()}
+async function loadPacks(){await ensureStaff();const x=await J(A+"/bx-pack-v3/packs"),r=x.rows||[];$("packList").innerHTML=r.map(packCard).join("");r.forEach(wirePack);document.querySelectorAll("[data-done]").forEach(b=>b.onclick=async()=>{try{await J(`${A}/bx-pack-v3/${b.dataset.done}/confirm`,{method:"POST"});loadPacks()}catch(e){alert(e.message)}});document.querySelectorAll("[data-print]").forEach(b=>b.onclick=()=>printPack(Number(b.dataset.print)))}
+async function printPack(id){await ensureStaff();const x=await J(A+"/bx-pack-v3/packs"),p=x.rows.find(z=>z.pack_id===id);if(!p)return;const w=open("","_blank");w.document.write(`<html><head><meta charset=utf-8><style>body{font-family:Arial;padding:25px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px}tfoot{font-weight:700}</style></head><body><h2 style="text-align:center">PHIẾU CHỐT BỐC XẾP THEO PACK</h2><p><b>Số PACK:</b> ${p.pack_code} · <b>Ngày:</b> ${p.pack_date}</p><p><b>Chuyến:</b> ${(p.trips||[]).map(x=>x.so_chung_tu).join(", ")}</p>${allocTable(p)}<br><table style="border:0"><tr><th style="border:0">Kế toán</th><th style="border:0">Thủ kho</th><th style="border:0">Đội trưởng bốc xếp</th></tr></table><script>window.print()<\/script></body></html>`);w.document.close()}
+
+// REPORT
+async function loadReport(){const p=new URLSearchParams();if($("rf").value)p.set("from_date",$("rf").value);if($("rt").value)p.set("to_date",$("rt").value);if($("rm").value)p.set("month",$("rm").value);try{reportData=await J(A+"/bx-pack-v3/report-v37?"+p);const s=reportData.summary||{};$("summaryCards").innerHTML=[["Số PACK",s.pack_count],["PACK nội bộ",s.internal_pack_count],["PACK thuê ngoài",s.external_pack_count],["Tổng kg",fmt(s.kg_total)],["Thu nhập nội bộ",money(s.internal_income_total)],["Tiền thuê ngoài",money(s.external_amount_total)]].map(a=>`<div class=stat><small>${a[0]}</small><b>${a[1]||0}</b></div>`).join("");$("peopleBody").innerHTML=(reportData.people||[]).map(r=>`<tr><td>${r.ma_nv}</td><td>${r.ten_nv}</td><td>${r.pack_count}</td><td>${fmt(r.kg_in_chan)}</td><td>${fmt(r.kg_in_le)}</td><td>${fmt(r.kg_out)}</td><td>${fmt(r.kg_total)}</td><td>${money(r.money_in_chan)}</td><td>${money(r.money_in_le)}</td><td>${money(r.money_out)}</td><td><b>${money(r.income_total)}</b></td></tr>`).join("");$("externalBody").innerHTML=(reportData.external||[]).map(r=>`<tr><td>${r.pack_date}</td><td>${r.pack_code}</td><td>${r.external_name}</td><td>${r.trip_count}</td><td>${fmt(r.kg_in_chan)}</td><td>${fmt(r.kg_in_le)}</td><td>${fmt(r.kg_out)}</td><td>${fmt(r.kg_total)}</td><td>${money(r.amount_total)}</td></tr>`).join("");$("packsBody").innerHTML=(reportData.packs||[]).map(r=>`<tr><td>${r.pack_date}</td><td>${r.pack_code}</td><td>${r.mode}</td><td>${r.trips}</td><td>${fmt(r.kg_in_chan)}</td><td>${fmt(r.kg_in_le)}</td><td>${fmt(r.kg_out)}</td><td>${fmt(r.kg_total)}</td><td>${money(r.amount_total)}</td></tr>`).join("")}catch(e){alert(e.message)}}
+$("reportBtn").onclick=loadReport;
+})();
+</script>
+<script>
+// ===== BX REPORT EXCEL V3.8 =====
+(function(){
+  function escXml(v){
+    return String(v??"")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&apos;");
+  }
+
+  function cell(v,type){
+    const isNum=type==="Number";
+    return `<Cell><Data ss:Type="${isNum?"Number":"String"}">${escXml(v)}</Data></Cell>`;
+  }
+
+  function worksheet(name,headers,rows,numericCols){
+    const head=`<Row>${headers.map(h=>cell(h,"String")).join("")}</Row>`;
+    const body=rows.map(r=>`<Row>${
+      r.map((v,i)=>cell(v,numericCols.has(i)?"Number":"String")).join("")
+    }</Row>`).join("");
+
+    return `<Worksheet ss:Name="${escXml(name)}">
+      <Table>${head}${body}</Table>
+      <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+        <FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane>
+        <ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios>
+      </WorksheetOptions>
+    </Worksheet>`;
+  }
+
+  function downloadExcelWorkbook(data){
+    const people=data.people||[];
+    const ext=data.external||[];
+    const packs=data.packs||[];
+
+    const peopleHeaders=[
+      "Mã NV","Tên NV","Số PACK",
+      "Kg bốc vào chẵn","Kg bốc vào lẻ","Kg bốc ra","Tổng kg",
+      "Tiền bốc vào chẵn","Tiền bốc vào lẻ","Tiền bốc ra","Tổng thu nhập"
+    ];
+    const peopleRows=people.map(r=>[
+      r.ma_nv||"",r.ten_nv||"",Number(r.pack_count||0),
+      Number(r.kg_in_chan||0),Number(r.kg_in_le||0),Number(r.kg_out||0),Number(r.kg_total||0),
+      Number(r.money_in_chan||0),Number(r.money_in_le||0),Number(r.money_out||0),Number(r.income_total||0)
+    ]);
+
+    const extHeaders=[
+      "Ngày","PACK","Đơn vị/Người thuê ngoài","Số chuyến",
+      "Kg bốc vào chẵn","Kg bốc vào lẻ","Kg bốc ra","Tổng kg",
+      "Tiền bốc vào chẵn","Tiền bốc vào lẻ","Tiền bốc ra","Tổng thành tiền"
+    ];
+    const extRows=ext.map(r=>[
+      r.pack_date||"",r.pack_code||"",r.external_name||"",Number(r.trip_count||0),
+      Number(r.kg_in_chan||0),Number(r.kg_in_le||0),Number(r.kg_out||0),Number(r.kg_total||0),
+      Number(r.money_in_chan||0),Number(r.money_in_le||0),Number(r.money_out||0),Number(r.amount_total||0)
+    ]);
+
+    const packHeaders=[
+      "Ngày","PACK","Hình thức","Danh sách chuyến","Số chuyến",
+      "Kg bốc vào chẵn","Kg bốc vào lẻ","Kg bốc ra","Tổng kg",
+      "Tiền bốc vào chẵn","Tiền bốc vào lẻ","Tiền bốc ra","Tổng thành tiền"
+    ];
+    const packRows=packs.map(r=>[
+      r.pack_date||"",r.pack_code||"",r.mode==="EXTERNAL"?"Thuê ngoài":"Nội bộ",
+      r.trips||"",Number(r.trip_count||0),
+      Number(r.kg_in_chan||0),Number(r.kg_in_le||0),Number(r.kg_out||0),Number(r.kg_total||0),
+      Number(r.money_in_chan||0),Number(r.money_in_le||0),Number(r.money_out||0),Number(r.amount_total||0)
+    ]);
+
+    const xml=`<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+   <Style ss:ID="Default" ss:Name="Normal">
+     <Alignment ss:Vertical="Bottom"/>
+     <Borders/>
+     <Font ss:FontName="Arial" x:Family="Swiss" ss:Size="10"/>
+     <Interior/><NumberFormat/><Protection/>
+   </Style>
+ </Styles>
+ ${worksheet("NHAN_SU_NOI_BO",peopleHeaders,peopleRows,new Set([2,3,4,5,6,7,8,9,10]))}
+ ${worksheet("THUE_NGOAI",extHeaders,extRows,new Set([3,4,5,6,7,8,9,10,11]))}
+ ${worksheet("THEO_PACK",packHeaders,packRows,new Set([4,5,6,7,8,9,10,11,12]))}
+</Workbook>`;
+
+    const blob=new Blob(["\ufeff",xml],{type:"application/vnd.ms-excel"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+
+    let suffix="";
+    const rm=document.getElementById("rm");
+    const rf=document.getElementById("rf");
+    const rt=document.getElementById("rt");
+    if(rm?.value) suffix="_"+rm.value;
+    else if(rf?.value||rt?.value) suffix="_"+(rf?.value||"")+"_"+(rt?.value||"");
+
+    a.download=`Bao_cao_Boc_xep${suffix}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    },300);
+  }
+
+  function installExport(){
+    const btn=document.getElementById("exportPeople");
+    if(!btn || btn.dataset.bx38==="1")return;
+    btn.dataset.bx38="1";
+    btn.textContent="Xuất Excel tổng hợp";
+
+    btn.onclick=async()=>{
+      try{
+        const p=new URLSearchParams();
+        const rf=document.getElementById("rf");
+        const rt=document.getElementById("rt");
+        const rm=document.getElementById("rm");
+        if(rf?.value)p.set("from_date",rf.value);
+        if(rt?.value)p.set("to_date",rt.value);
+        if(rm?.value)p.set("month",rm.value);
+
+        const r=await fetch("/api/qtgh-stable/bx-pack-v3/report-v37?"+p.toString());
+        const t=await r.text();
+        let x;
+        try{x=JSON.parse(t)}catch{x=t}
+        if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+
+        downloadExcelWorkbook(x);
+      }catch(e){
+        alert("Không xuất được Excel: "+e.message);
+      }
+    };
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",installExport);
+  }else{
+    installExport();
+  }
+  new MutationObserver(installExport).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+</body>
+</html>

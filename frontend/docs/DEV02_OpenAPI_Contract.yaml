@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: Mini App Vinh Giang API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /imports:
+    post:
+      summary: Upload source/master file and create batch
+      responses: {'201': {description: Batch created}}
+    get:
+      summary: List import batches
+      responses: {'200': {description: OK}}
+  /imports/{batchId}/validate:
+    post:
+      summary: Validate mapping, duplicates and business-required fields
+      parameters: [{in: path, name: batchId, required: true, schema: {type: integer}}]
+      responses: {'200': {description: Validation result}}
+  /imports/{batchId}/preview:
+    get:
+      summary: Preview Add/Update/Error
+      parameters: [{in: path, name: batchId, required: true, schema: {type: integer}}]
+      responses: {'200': {description: Preview}}
+  /imports/{batchId}/commit:
+    post:
+      summary: Idempotently commit valid rows
+      parameters: [{in: path, name: batchId, required: true, schema: {type: integer}}]
+      responses: {'200': {description: Committed}}
+  /gh/settlements/{id}/confirm:
+    post:
+      summary: Finalize GH settlement and snapshot applied prices
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses: {'200': {description: Finalized}}
+  /gh/adjustments:
+    post:
+      summary: Create adjustment referencing immutable original document
+      responses: {'201': {description: Adjustment created}}
+  /gh/receipts:
+    post:
+      summary: Create receipt for customer or delivery employee debt
+      responses: {'201': {description: Receipt created}}
+  /bx/daily-sheets:
+    post:
+      summary: Create daily loading/unloading confirmation sheet
+      responses: {'201': {description: Sheet created}}
+  /bx/daily-sheets/{id}/confirm:
+    post:
+      summary: Finalize BX sheet and allocations
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses: {'200': {description: Finalized}}
+  /reports/kq-sales:
+    get:
+      summary: Sales employee results including GSS, ECO_01, ECO_02
+      responses: {'200': {description: OK}}
+  /reports/kq-delivery:
+    get:
+      summary: Delivery result by delivery employee, driver or vehicle
+      responses: {'200': {description: OK}}
+  /dashboard:
+    get:
+      summary: Read-only management dashboard
+      responses: {'200': {description: OK}}

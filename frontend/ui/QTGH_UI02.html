@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QTGH UI02 – Chuẩn bị, In & Chốt giao hàng</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#111827}
+.wrap{padding:18px;max-width:1800px;margin:auto}
+.card{background:#fff;border:1px solid #dbe3ee;border-radius:14px;padding:16px;margin-bottom:14px}
+h1,h2,h3{margin:0 0 8px}.sub{color:#667085;font-size:13px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}
+button,a.btn,input,select{padding:8px 10px;border:1px solid #cfd8e3;border-radius:8px;background:#fff;color:#111827;text-decoration:none}
+button{cursor:pointer}.primary{background:#1769e0;color:#fff;border-color:#1769e0}
+.hidden{display:none!important}.row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.scroll{overflow:auto;max-height:58vh}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left;white-space:nowrap}
+th{background:#f8fafc}.num{text-align:right}.ok{color:#067647}.bad{color:#b42318}.warn{color:#b54708}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.kpi{border:1px solid #dbe3ee;border-radius:10px;padding:10px 13px;min-width:140px}
+.kpi small{color:#667085}.kpi b{display:block;font-size:18px;margin-top:4px}
+.invoice{background:#fff;border:1px solid #bfcbd9;border-radius:10px;padding:18px;margin:16px 0}
+.invoice-head{display:flex;justify-content:space-between;gap:20px}
+.invoice-col{flex:1;line-height:1.55}
+.invoice-title{text-align:center;font-size:21px;font-weight:700;margin:4px 0 16px}
+.invoice table{font-size:11px}.invoice th,.invoice td{border:1px solid #9ca3af;padding:5px;white-space:normal}
+.total-box{margin-left:auto;width:min(520px,100%);margin-top:12px}
+.total-row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:5px 0}
+.print-note{font-size:12px;color:#667085;margin-top:8px}
+.errorbox{background:#fff4f2;border:1px solid #f5c2bd;border-radius:8px;padding:10px;margin-top:10px}
+@media(max-width:900px){.invoice-head{display:block}.invoice-col{margin-bottom:10px}}
+
+/* VG_PRINT_FORMS_20261003 */
+.print-table td.name-cell{font-weight:400!important}
+</style>
+
+<style id="ba-v11-phase3a-css">
+.invoice-page{position:relative;background:#fff;border:1px solid #bfcbd9;border-radius:8px;padding:12px 14px;margin:14px 0;page-break-after:always}
+.invoice-page:last-child{page-break-after:auto}
+.page-no{position:absolute;right:14px;top:10px;font-size:13px;font-weight:700}
+.invoice-title{text-align:center;font-size:21px;font-weight:700;margin:4px 70px 8px}
+.info-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-bottom:7px;font-size:13px;line-height:1.3}
+.info-line{margin:1px 0}.info-line.compact{display:flex;flex-wrap:wrap;gap:14px}
+.print-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11.4px}
+.print-table th,.print-table td{border:1px solid #9ca3af;padding:3px 4px;vertical-align:middle}
+.print-table th{background:#f3f4f6;text-align:center;font-size:11.3px;line-height:1.1}
+.print-table td.name-cell{font-size:12.7px;font-weight:600;line-height:1.12}
+.print-table td.qty-cell{font-size:12.9px;font-weight:700;text-align:center}
+.print-table td.money-cell{text-align:right}
+.print-table .c-stt{width:3.5%}.print-table .c-sku{width:7.5%}.print-table .c-name{width:24%}
+.print-table .c-qc{width:4%}.print-table .c-qty{width:5%}.print-table .c-price{width:7%}.print-table .c-money{width:8%}
+.payment-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:14px;margin-top:6px}
+.qr-wrap{display:grid;grid-template-columns:100px 1fr;gap:8px}
+.qr-box{width:94px;height:94px;border:2px solid #111;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:11px}
+.bank-info,.money-info{font-size:12.3px;line-height:1.35}.bank-info div{margin:2px 0}
+.money-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:2px 0}.money-row.final{font-size:14px;font-weight:700}
+.words{margin-top:5px;font-size:12.4px;line-height:1.3}
+.sign-grid{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-top:16px;font-size:13px;font-weight:700}
+.sign-note{font-size:11px;font-weight:400;font-style:italic}
+.cont-head{font-size:13px;font-weight:700;margin-bottom:5px}
+#printLotBtn{background:#1769e0;color:#fff;border-color:#1769e0}
+@media print{
+ body{background:#fff!important}body *{visibility:hidden!important}
+ #invoicePreview,#invoicePreview *{visibility:visible!important}
+ #invoicePreview{position:absolute;left:0;top:0;width:100%}
+ .invoice-page{border:none!important;border-radius:0!important;margin:0!important;padding:8mm!important;width:210mm;min-height:297mm;page-break-after:always}
+ .invoice-page:last-child{page-break-after:auto}
+ @page{size:A4 portrait;margin:0}
+}
+</style>
+
+
+<style id="ba-v11-table-fit-v1">
+.print-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:9.2px;
+}
+.print-table th,
+.print-table td{
+  border:1px solid #9ca3af;
+  padding:2.4px 2px;
+  vertical-align:middle;
+  overflow:hidden;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.08;
+}
+.print-table th{
+  background:#f3f4f6;
+  text-align:center;
+  font-size:8.8px;
+  font-weight:700;
+}
+.print-table td.name-cell{
+  font-size:10.4px;
+  font-weight:600;
+  line-height:1.1;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.print-table td.qty-cell{
+  font-size:10.6px;
+  font-weight:700;
+  text-align:center;
+  white-space:nowrap;
+}
+.print-table td.money-cell{
+  font-size:9px;
+  text-align:right;
+  white-space:nowrap;
+}
+.print-table td:nth-child(1),
+.print-table td:nth-child(2),
+.print-table td:nth-child(4){
+  white-space:nowrap;
+}
+.print-table .c-stt{width:3%}
+.print-table .c-sku{width:7%}
+.print-table .c-name{width:29%}
+.print-table .c-qc{width:3.5%}
+.print-table .c-qty{width:4.3%}
+.print-table .c-price{width:6.7%}
+.print-table .c-money{width:7.8%}
+@media print{
+  .invoice-page{padding:6mm 5.5mm 6mm 5.5mm!important}
+  .print-table{font-size:8.8px!important}
+  .print-table th{font-size:8.3px!important;padding:2px 1.5px!important}
+  .print-table td{padding:2px 1.5px!important}
+  .print-table td.name-cell{font-size:9.8px!important}
+  .print-table td.qty-cell{font-size:10px!important}
+  .print-table td.money-cell{font-size:8.7px!important}
+}
+</style>
+
+
+
+
+
+
+
+
+
+
+
+<style id="ba-v11-lot-hard-reset-v4">
+.delivery-list-page{
+  position:relative;background:#fff;border:1px solid #bfcbd9;border-radius:8px;
+  padding:12px 14px;margin:14px 0;page-break-after:always
+}
+.delivery-list-title{text-align:center;font-size:21px;font-weight:800;margin:3px 0 8px}
+.delivery-list-meta{
+  display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:12px;
+  font-size:12.5px;margin-bottom:8px
+}
+.delivery-list-table{
+  width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.8px
+}
+.delivery-list-table th,.delivery-list-table td{
+  border:1px solid #8f99a6;padding:4px 3px;vertical-align:middle;
+  overflow:hidden;line-height:1.15
+}
+.delivery-list-table th{
+  background:#f3f4f6;font-weight:700;text-align:center;
+  white-space:normal;overflow-wrap:anywhere;word-break:break-word
+}
+.delivery-list-table td{
+  white-space:normal;overflow-wrap:anywhere;word-break:break-word
+}
+.delivery-list-table td.money{
+  text-align:right;font-weight:700;white-space:nowrap;overflow-wrap:normal;word-break:normal
+}
+.delivery-list-table td.blank-write{height:30px}
+.delivery-list-table .seq{width:4%}
+.delivery-list-table .invoice{width:10%}
+.delivery-list-table .kh{width:18%}
+.delivery-list-table .phone{width:9%}
+.delivery-list-table .sales{width:15%}
+.delivery-list-table .cash-discount{width:8%}
+.delivery-list-table .reward{width:7%}
+.delivery-list-table .accum{width:7%}
+.delivery-list-table .payable{width:10%}
+.delivery-list-table .payment{width:4%}
+.delivery-list-table .returns{width:8%}
+.delivery-list-table tr.lot-total-row td{
+  background:#eef3f8;font-weight:800;font-size:11.2px;white-space:nowrap
+}
+.delivery-list-table tr.lot-total-row td.total-label{
+  text-align:right;padding-right:10px
+}
+.delivery-list-sign{
+  display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;
+  margin-top:30px;font-size:13px;font-weight:700
+}
+.delivery-list-sign .line{
+  margin:48px auto 0;width:65%;border-top:1px solid #222
+}
+@media print{
+  .delivery-list-page{
+    border:none!important;border-radius:0!important;margin:0!important;
+    padding:7mm!important;width:210mm;min-height:297mm;
+    page-break-after:always!important
+  }
+  .delivery-list-table{font-size:10px!important}
+  .delivery-list-table th,.delivery-list-table td{padding:3px 2px!important}
+}
+</style>
+
+
+<style id="ba-v11-lot-tfoot-fix-v5">
+.delivery-list-table tfoot{display:table-footer-group}
+.delivery-list-table tfoot .lot-total-row td{
+  background:#eef3f8!important;
+  font-weight:800!important;
+  font-size:11.2px!important;
+  white-space:nowrap!important;
+}
+.delivery-list-table tfoot .total-label{
+  text-align:right!important;
+  padding-right:10px!important;
+}
+</style>
+
+
+<style id="ba-v11-lot-total-class-fix-v6">
+.delivery-list-table tr.lot-total-row{
+  display:table-row!important;
+}
+.delivery-list-table tr.lot-total-row td{
+  display:table-cell!important;
+  background:#eef3f8!important;
+  font-weight:800!important;
+  font-size:11.2px!important;
+  white-space:nowrap!important;
+  vertical-align:middle!important;
+}
+.delivery-list-table tr.lot-total-row td.total-label{
+  text-align:right!important;
+  padding-right:10px!important;
+}
+</style>
+
+<style id="vg-delivery-km-display">
+.print-table .c-stt{width:3.5%}.print-table .c-sku{width:8.5%}
+.print-table .c-name{width:33%}.print-table .c-qc{width:4%}.print-table .c-su{width:5%}
+.print-table .c-qty{width:5%}.print-table .c-price{width:7%}
+.print-table .c-money{width:15%}
+.print-table td.name-cell{font-weight:400!important}
+.print-table tbody td{font-weight:400!important}
+.print-source-note{margin:5px 0;font-size:10px;line-height:1.3}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+  <h1>UI02 – Chuẩn bị, In & Chốt giao hàng</h1>
+  <div class="sub">BA QTGH PRINT LOT 01 V1.1 · D0 = NGAY_DON · UI03–UI11 không thay đổi.</div>
+</div>
+
+<div class="card tabs">
+  <button data-tab="t1" class="active">1. Nạp & kiểm tra</button>
+  <button data-tab="t2">2. PREP BATCH</button>
+  <button data-tab="t3">3. PRINT LOT</button>
+  <button data-tab="t4">4. Preview phiếu</button>
+  <button data-tab="t5">5. Chốt giao</button>
+  <button data-tab="t6">6. Nhật ký</button>
+</div>
+
+<section id="t1" class="card">
+  <h2>Nạp dữ liệu chuẩn bị</h2>
+  <div class="row">
+    <button id="downloadTemplateBtn" type="button">Tải Template DMS/MBW V2.1</button>
+    <input id="file" type="file" accept=".xlsx">
+    <button id="previewBtn" class="primary">Preview / Kiểm tra</button>
+    <button id="commitBtn" disabled>Commit staging</button>
+  </div>
+  <div class="card" style="margin-top:16px;background:#f3f8ff">
+    <h3>Nạp file nguyên bản DMS và MBW</h3>
+    <div class="sub">Phân công lấy từ từng dòng Excel: mã KH, người giao, lái xe, phương tiện, lô và tài khoản nhận tiền. Một xe có thể nhận nhiều lô.</div>
+    <div class="row"><label>DMS <input id="rawDms" type="file" accept=".xlsx"></label><label>MBW <input id="rawMbw" type="file" accept=".xlsx"></label>
+      <button id="rawPreviewBtn" class="primary" type="button">Kiểm tra file nguyên bản</button>
+      <button id="rawCommitBtn" type="button" disabled>Nạp vào UI02</button>
+    </div>
+    <div id="rawStatus" class="sub"></div>
+    <div id="rawPointTable" class="scroll" style="max-height:450px"></div>
+  </div>
+  <div id="uploadStatus" style="margin-top:10px"></div>
+  <div id="errorBox"></div>
+  <div id="previewTable" class="scroll" style="margin-top:10px"></div>
+</section>
+
+<section id="t2" class="card hidden">
+  <h2>PREP BATCH</h2>
+  <button id="reloadPrep">Làm mới</button>
+  <div class="scroll" style="margin-top:10px">
+    <table><thead><tr><th>PREP BATCH</th><th>File</th><th>Trạng thái</th><th>Đơn</th><th>Dòng</th><th>Tổng phải thu</th><th>Người nạp</th><th>Thời gian</th></tr></thead><tbody id="prepBody"></tbody></table>
+  </div>
+</section>
+
+<section id="t3" class="card hidden">
+  <h2>PRINT LOT</h2>
+  <button id="reloadLot">Làm mới</button>
+  <button id="showPickOrders" type="button">Xem đơn trong lô đã đánh dấu</button>
+  <button id="printVehiclePick" type="button">In phiếu giao hàng theo xe (HC + PC + KHÁC)</button>
+  <button id="printArrangeLots" type="button" onclick="printArrangeLots()">In phiếu sắp hàng chẵn / lẻ (HC + PC + KHÁC)</button>
+  <div class="sub">Phiếu sắp hàng: đánh dấu một hoặc nhiều LOT ở bảng dưới, lấy toàn bộ đơn trong LOT, không giới hạn NVGH/ngày/xe. Thùng chẵn nhặt chung các lô; hàng lẻ in riêng từng lô, quy đổi riêng từng SKU trong lô.</div>
+  <label>Ngày hóa đơn MISA <input type="date" id="misaInvoiceDate"></label>
+  <button id="exportMisaLot" type="button">Xuất MISA – một lô</button>
+  <div class="sub">Đánh dấu lô để lấy toàn bộ đơn, hoặc xem từng đơn rồi chọn riêng. Có thể gộp nhiều xe, nhiều ngày giao và in lại theo cách chọn khác.</div>
+  <div id="pickOrderChoices" class="scroll" style="margin-top:10px"></div>
+  <div class="scroll" style="margin-top:10px">
+    <table><thead><tr><th>Chọn</th><th>PRINT LOT ID</th><th>Ngày giao dự kiến</th><th>Xe dự kiến</th><th>Lô dự kiến</th><th>NVGH dự kiến</th><th>Đơn</th><th>KH</th><th>Tổng phải thu</th><th>Trạng thái</th><th></th></tr></thead><tbody id="lotBody"></tbody></table>
+  </div>
+</section>
+
+<section id="t4" class="card hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2>Preview phiếu giao hàng</h2><div><button id="lockPrintBtn">Khóa bản in & tạo QR</button> <button id="printLotBtn" disabled>In / Lưu PDF</button></div></div>
+  <div class="sub">Đây là preview dữ liệu trước khi tạo PDF thật. Giao diện phiếu đã khóa theo yêu cầu đã duyệt.</div>
+  <div id="lotSummary"></div>
+  <div id="invoicePreview"></div>
+</section>
+
+<section id="t5" class="card hidden">
+  <h2>Cập nhật thực tế / Chốt giao</h2>
+  <div id="actualLotInfo" class="sub">Chọn PRINT LOT tại Tab 3 rồi bấm “Chốt giao”.</div>
+  <div class="row" style="margin-top:12px">
+    <label>Ngày giao thực tế<br><input id="actualDate" type="date"></label>
+    <label>NVGH thực tế<br><input id="actualNvgh"></label>
+    <label>Lái xe thực tế<br><input id="actualDriver"></label>
+    <label>Phương tiện thực tế<br><input id="actualVehicle"></label>
+    <label>Mã lô thực tế<br><input id="actualLotCode"></label>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label style="min-width:320px">Lý do thay đổi<br><input id="actualReason" style="width:100%"></label>
+    <label style="min-width:320px">Nguồn xác nhận Thủ kho<br><input id="actualSource" style="width:100%"></label>
+    <button id="finalizeLotBtn" class="primary">Chốt giao toàn bộ lô</button>
+  </div>
+  <div id="finalizeStatus" style="margin-top:12px"></div>
+  <div class="card" style="margin-top:16px">
+    <h3>Bàn giao sang QTGH</h3>
+    <div id="handoffStatus" class="sub">Chưa kiểm tra.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="handoffPreviewBtn">Kiểm tra bàn giao</button>
+      <button id="handoffCommitBtn" class="primary" disabled>Bàn giao QTGH</button>
+    </div>
+    <div id="handoffPreview" style="margin-top:10px"></div>
+  </div>
+
+</section>
+
+<section id="t6" class="card hidden">
+  <h2>Nhật ký</h2>
+  <button id="reloadAudit">Làm mới</button>
+  <div class="scroll" style="margin-top:10px">
+    <table><thead><tr><th>ID</th><th>Sự kiện</th><th>Đối tượng</th><th>Người</th><th>Thời gian</th><th>Lý do</th></tr></thead><tbody id="auditBody"></tbody></table>
+  </div>
+</section>
+</div>
+
+<script>
+const A="/api/qtgh-v11";
+const $=id=>document.getElementById(id);
+const fmt=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+let selectedFile=null;
+let previewPayload=null;
+
+async function J(url,opt={}){
+  opt.headers=Object.assign({},opt.headers||{},{"Authorization":"Bearer "+(localStorage.getItem("vg_token")||"")});
+  const r=await fetch(url,opt);
+  const t=await r.text();
+  let x;
+  try{x=JSON.parse(t)}catch{x=t}
+  if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+  return x;
+}
+
+let rawToken="";
+function rawDetails(){return '{}';}
+function renderRawPoints(points){
+ $('rawPointTable').innerHTML='<table><thead><tr><th>Mã KH</th><th>Ngày đơn</th><th>Đơn</th><th>Kg</th><th>Phải trả</th><th>Lô</th><th>Xe</th><th>Người giao</th><th>Lái xe</th><th>TK nhận tiền</th></tr></thead><tbody>'+points.map(p=>'<tr>'+[p.customer,p.order_date,p.orders,fmt(p.kg),fmt(p.money),p.LO_GIAO_HANG,p.PHUONG_TIEN,p.MA_NV_GIAO_HANG_NGHIEP_VU,p.MA_NV_LAI_XE_NGHIEP_VU,p.MA_TKNH].map(v=>'<td>'+escapePick(v??'')+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}
+function rawForm(commit=false){
+ const fd=new FormData();fd.append('details',rawDetails());
+ if($("rawDms").files[0])fd.append('dms',$("rawDms").files[0]);
+ if($("rawMbw").files[0])fd.append('mbw',$("rawMbw").files[0]);
+ if(commit)fd.append('token',rawToken);
+ return fd;
+}
+['rawDms','rawMbw'].forEach(id=>{
+ $(id).addEventListener('change',()=>{rawToken='';$('rawCommitBtn').disabled=true;});
+ $(id).addEventListener('input',()=>{rawToken='';$('rawCommitBtn').disabled=true;});
+});
+$('rawPreviewBtn').onclick=async()=>{
+ try{
+  $('rawStatus').textContent='Đang đối chiếu file và danh mục...';
+  const x=await J(A+'/raw/preview',{method:'POST',body:rawForm()});
+  if(x.point_rows)renderRawPoints(x.point_rows);
+  if(!x.ready){
+   const issues=(x.mapping?.issues||[]).slice(0,20).map(z=>z.type+' '+z.code).join('; ');
+   $('rawStatus').textContent='Chưa thể nạp: '+(x.missing_staff?.length?'Mã nhân viên chưa mapping: '+x.missing_staff.join(', '):x.assignment_required?'Cần gán lô/xe/người giao cho đủ '+x.points+' điểm.':issues)+' · Số đơn: '+x.orders;
+   return;
+  }
+  rawToken=x.checksum;$('rawCommitBtn').disabled=false;
+  $('rawStatus').textContent=`Hợp lệ: ${x.orders} đơn / ${x.points} điểm giao; ${x.mixed_points} điểm có cả DMS và MBW; ${x.lot_count} lô; ${x.lines} dòng; tổng phải trả ${fmt(x.money)} đồng. Kiểm tra các lô trước khi nạp.`;
+ }catch(e){rawToken='';$('rawCommitBtn').disabled=true;$('rawStatus').textContent=e.message;}
+};
+$('rawCommitBtn').onclick=async()=>{
+ if(!rawToken)return;
+ if(!confirm('Nạp các đơn nguyên bản đã kiểm tra vào UI02?'))return;
+ try{
+  $('rawCommitBtn').disabled=true;
+  const x=await J(A+'/raw/commit',{method:'POST',body:rawForm(true)});
+  rawToken='';$('rawStatus').textContent=`Đã nạp ${x.total_orders} đơn vào ${x.print_lot_ids?.length||0} lô. PREP BATCH: ${x.prep_batch_id}`;
+  await loadPrep();await loadLots();
+ }catch(e){$('rawStatus').textContent=e.message;$('rawCommitBtn').disabled=false;}
+};
+
+$("downloadTemplateBtn").onclick=async()=>{
+  const button=$("downloadTemplateBtn");
+  const token=localStorage.getItem("vg_token");
+  if(!token){alert("Phiên đăng nhập không còn. Vui lòng đăng nhập lại.");return;}
+  button.disabled=true;
+  try{
+    const r=await fetch(A+"/template-v11.xlsx",{headers:{"Authorization":"Bearer "+token},cache:"no-store"});
+    if(!r.ok){
+      let detail="HTTP "+r.status;
+      try{const x=await r.json();detail=x.detail||detail}catch(e){}
+      throw new Error(detail);
+    }
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download="02_Template_DMS_MBW_GiaoThat_BanBu_InChungTu_V2_1.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){alert("Không tải được Template: "+e.message)}
+  finally{button.disabled=false;}
+};
+
+document.querySelectorAll("[data-tab]").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll("[data-tab]").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    ["t1","t2","t3","t4","t5","t6"].forEach(id=>$(id).classList.add("hidden"));
+    $(btn.dataset.tab).classList.remove("hidden");
+  };
+});
+
+$("file").onchange=e=>{
+  selectedFile=e.target.files?.[0]||null;
+  previewPayload=null;
+  $("commitBtn").disabled=true;
+  $("uploadStatus").textContent=selectedFile?"Đã chọn: "+selectedFile.name:"";
+  $("errorBox").innerHTML="";
+  $("previewTable").innerHTML="";
+};
+
+$("previewBtn").onclick=async()=>{
+  if(!selectedFile)return alert("Chọn file Excel");
+  try{
+    $("uploadStatus").textContent="Đang kiểm tra...";
+    const fd=new FormData();
+    fd.append("file",selectedFile);
+    const r=await fetch(A+"/prep/preview",{method:"POST",body:fd,headers:{"X-Uploaded-By":"dev","Authorization":"Bearer "+(localStorage.getItem("vg_token")||"")}});
+    const t=await r.text();let x;try{x=JSON.parse(t)}catch{x=t}
+    if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+    previewPayload=x;
+
+    const complete=Array.isArray(x.rows)&&x.rows.length===x.total_rows;
+    $("uploadStatus").innerHTML=`Dòng: <b>${x.total_rows}</b> · Hợp lệ: <b class=ok>${x.valid_rows}</b> · Lỗi: <b class="${x.error_rows?"bad":"ok"}">${x.error_rows}</b>`+(complete?"":` · <span class=bad>Preview chỉ trả ${x.rows?.length||0} dòng; không được Commit</span>`);
+    $("commitBtn").disabled=x.error_rows>0||!complete;
+
+    if(x.errors?.length){
+      $("errorBox").innerHTML=`<div class=errorbox><b>Lỗi cần xử lý</b><br>${x.errors.map(e=>`Dòng ${e.row_no}: ${(e.errors||[]).join("; ")}`).join("<br>")}</div>`;
+    }else $("errorBox").innerHTML="";
+
+    $("previewTable").innerHTML=`<table><thead><tr><th>Dòng</th><th>SO_HOA_DON</th><th>NGAY_DON</th><th>NGAY_GIAO</th><th>KH</th><th>SKU</th><th>NVGH</th><th>Lô</th><th>Trạng thái</th></tr></thead><tbody>${
+      (x.rows||[]).slice(0,200).map(r=>`<tr><td>${r.row_no}</td><td>${r.data?.SO_HOA_DON||""}</td><td>${r.data?.NGAY_DON||""}</td><td>${r.data?.NGAY_GIAO||""}</td><td>${r.data?.MA_KH_NGUON||""}</td><td>${r.data?.MA_SKU||""}</td><td>${r.data?.MA_NV_GIAO_HANG_NGHIEP_VU||""}</td><td>${r.data?.LO_GIAO_HANG||""}</td><td>${r.valid?"Hợp lệ":"Lỗi"}</td></tr>`).join("")
+    }</tbody></table>`+(x.total_rows>200?`<div class="sub">Bảng chỉ hiển thị 200 dòng đầu; khi Commit hệ thống gửi đủ ${x.total_rows} dòng đã kiểm tra.</div>`:"");
+  }catch(e){
+    $("uploadStatus").innerHTML=`<span class=bad>${e.message}</span>`;
+    $("commitBtn").disabled=true;
+  }
+};
+
+$("commitBtn").onclick=async()=>{
+  if(!previewPayload)return;
+  try{
+    if(previewPayload.error_rows||!Array.isArray(previewPayload.rows)||previewPayload.rows.length!==previewPayload.total_rows){
+      throw new Error("Preview chưa đầy đủ hoặc còn lỗi; không được Commit");
+    }
+    const body={
+      filename:selectedFile?.name||previewPayload.filename,
+      checksum:previewPayload.checksum,
+      rows:previewPayload.rows,
+      expected_total_rows:previewPayload.total_rows,
+      uploaded_by:"dev"
+    };
+    const x=await J(A+"/prep/commit-v2",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    alert(`Đã Commit ${x.prep_batch_id} · ${x.total_orders} đơn · ${x.print_lot_ids?.length||0} lô`);
+    $("commitBtn").disabled=true;
+    await loadPrep();
+    await loadLots();
+  }catch(e){alert(e.message)}
+};
+
+async function loadPrep(){
+  const x=await J(A+"/prep-batches");
+  $("prepBody").innerHTML=(x.rows||[]).map(r=>`<tr>
+    <td>${r.prep_batch_id}</td><td>${r.source_file_name}</td><td>${r.status}</td>
+    <td>${r.total_orders}</td><td>${r.total_lines}</td><td class=num>${fmt(r.total_amount)}</td>
+    <td>${r.uploaded_by||""}</td><td>${r.uploaded_at||""}</td>
+  </tr>`).join("");
+}
+
+async function loadLots(){
+  const x=await J(A+"/print-lots");
+  $("lotBody").innerHTML=(x.rows||[]).map(r=>`<tr>
+    <td><input type="checkbox" class="vehicle-pick-lot" value="${escapePick(r.print_lot_id)}"></td>
+    <td>${escapePick(r.print_lot_id)}</td><td>${escapePick(r.planned_delivery_date)}</td><td>${escapePick(r.planned_vehicle_code)}</td><td>${escapePick(r.planned_lot_code)}</td>
+    <td>${r.planned_delivery_staff_code||""}</td><td>${r.order_count}</td><td>${r.customer_count}</td>
+    <td class=num>${fmt(r.total_amount)}</td><td>${r.status}</td>
+    <td><button data-openlot="${r.print_lot_id}">Preview</button> <button data-finalizelot="${r.print_lot_id}">Chốt giao</button></td>
+  </tr>`).join("");
+  document.querySelectorAll("[data-openlot]").forEach(b=>b.onclick=()=>openLot(b.dataset.openlot));
+  document.querySelectorAll("[data-finalizelot]").forEach(b=>b.onclick=()=>{document.querySelector(`[data-tab="t5"]`).click();loadActualLot(b.dataset.finalizelot)});
+}
+
+function escapePick(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function pickSheetHtml(title,items,data){
+  // VG_QC_TOTAL_SU_MISA_V1
+  const rows=items.map((r,i)=>`<tr><td>${i+1}</td><td>${escapePick(r.group)}</td><td>${escapePick(r.name)}</td><td>${escapePick(r.sku)}</td><td class="num">${r.pack_su}</td><td class="num">${r.cases}</td><td class="num">${r.loose_su}</td><td class="num">${r.total_su}</td></tr>`).join('');
+  const totalCases=items.reduce((sum,r)=>sum+r.cases,0);
+  const totalLooseSu=items.reduce((sum,r)=>sum+r.loose_su,0);
+  const totalSu=items.reduce((sum,r)=>sum+r.total_su,0);
+  return `<section class="sheet"><h1>PHIẾU GIAO HÀNG THEO XE – KHO ${title}</h1>
+    <p><b>Ngày giao trong bộ phiếu:</b> ${data.delivery_dates.map(escapePick).join(', ')} &nbsp; <b>Xe:</b> ${data.vehicles.map(escapePick).join(', ')}</p>
+    <p><b>Lô đã chọn:</b> ${data.lot_codes.map(escapePick).join(', ')} &nbsp; <b>Số lô:</b> ${data.lot_ids.length} &nbsp; <b>Số đơn:</b> ${data.order_count}</p>
+    <table class="pick-table"><colgroup><col style="width:5%"><col style="width:6%"><col><col style="width:12%"><col style="width:6%"><col style="width:10%"><col style="width:7%"><col style="width:9%"></colgroup><thead><tr><th>STT</th><th>Nhóm</th><th>Tên hàng</th><th>Mã SKU</th><th>QC</th><th>Thùng<br>chẵn</th><th>SU lẻ</th><th>Tổng SU</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="8">Không có mặt hàng thuộc kho này.</td></tr>'}</tbody>
+    <tfoot><tr><th colspan="5">TỔNG CỘT</th><th class="num">${totalCases}</th><th class="num">${totalLooseSu}</th><th class="num">${totalSu}</th></tr></tfoot></table>
+    <p><b>Số SKU:</b> ${items.length} &nbsp; <b>Tổng SU:</b> ${totalSu}</p>
+    <div class="sign"><span>Người lập phiếu</span><span>Thủ kho</span><span>Người nhận hàng</span></div>
+  </section>`;
+}
+function arrangeSheetHtml(title,items,data,loose=false){
+  const rows=items.map((r,i)=>`<tr><td>${i+1}</td><td>${escapePick(r.group)}</td><td>${escapePick(r.name)}</td><td>${escapePick(r.sku)}</td><td class="num">${r.pack_su}</td>${loose?`<td class="num">${r.remaining_loose_su}</td>`:`<td class="num">${r.source_cases}</td>`}</tr>`).join('');
+  const totalCases=items.reduce((sum,r)=>sum+(loose?r.loose_cases:r.source_cases),0);
+  const totalLoose=items.reduce((sum,r)=>sum+r.remaining_loose_su,0);
+  return `<section class="sheet"><h1>PHIẾU SẮP HÀNG ${loose?'LẺ':'CHẴN'} – KHO ${escapePick(title)}</h1>
+    <p><b>Ngày giao:</b> ${data.delivery_dates.map(escapePick).join(', ')} &nbsp; <b>Xe:</b> ${data.vehicles.map(escapePick).join(', ')}</p>
+    <p><b>${loose?'Lô nhặt riêng':'Các lô gộp'}:</b> ${data.lot_codes.map(escapePick).join(', ')}<br><b>PRINT LOT ID:</b> ${data.lot_ids.map(escapePick).join(', ')} &nbsp; <b>Số lô:</b> ${data.lot_ids.length} &nbsp; <b>Số đơn:</b> ${data.order_count}</p>
+    ${loose?`<p><b>Mã NVGH:</b> ${escapePick(data.delivery_staff?.code||'Chưa có mã')} &nbsp; <b>Tên NVGH:</b> ${escapePick(data.delivery_staff?.name||'Chưa có tên trong danh mục')}</p>`:''}
+    <table class="pick-table"><colgroup><col style="width:5%"><col style="width:6%"><col><col style="width:13%"><col style="width:7%"><col style="width:14%"></colgroup>
+    <thead><tr><th>STT</th><th>Nhóm</th><th>Tên hàng</th><th>Mã SKU</th><th>QC</th>${loose?'<th>SU lẻ</th>':'<th>Thùng chẵn</th>'}</tr></thead>
+    <tbody>${rows||`<tr><td colspan="6">Không có hàng ${loose?'lẻ':'chẵn'} thuộc kho này.</td></tr>`}</tbody>
+    <tfoot><tr><th colspan="5">TỔNG CỘT</th><th class="num">${loose?totalLoose:totalCases}</th></tr></tfoot></table>
+    <p>${loose?'Chỉ nhặt SU lẻ còn dư sau quy đổi tổng SKU trên phiếu giao theo xe của lô này. Không gộp với lô khác.':'Cộng cột Thùng chẵn trên phiếu giao theo xe của từng lô đã chọn, đưa ra khu vực chờ xuất. SU lẻ còn dư in riêng từng lô; không quy đổi lẻ giữa các lô.'}</p>
+    <p><b>Số SKU:</b> ${items.length}</p>
+    <div class="sign"><span>Phụ kho nhặt hàng</span><span>Thủ kho</span><span>Người nhận hàng</span></div>
+  </section>`;
+}
+function arrangeSheetsHtml(data){
+  const warehouses=['HC','PC','KHÁC'];
+  const common=warehouses.filter(w=>data.sheets[w].length).map(w=>arrangeSheetHtml(w,data.sheets[w],data)).join('');
+  const loose=(data.loose_lots||[]).map(lot=>warehouses.filter(w=>lot.sheets[w].length).map(w=>arrangeSheetHtml(w,lot.sheets[w],lot,true)).join('')).join('');
+  return (common||'<p>Không có thùng chẵn trong các lô đã chọn.</p>')+loose;
+}
+async function printArrangeLots(){
+  const ids=[...document.querySelectorAll('.vehicle-pick-lot:checked')].map(x=>x.value);
+
+  if(!ids.length){alert('Hãy chọn ít nhất một LOT. Phiếu sắp hàng lấy toàn bộ đơn của các LOT đã chọn.');return;}
+  const win=window.open('','_blank');
+  if(!win){alert('Trình duyệt đang chặn cửa sổ in.');return;}
+  try{
+    const data=await J(A+'/warehouse-arrange-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lot_ids:ids})});
+    const html=`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Phiếu sắp hàng ${data.vehicles.map(escapePick).join(', ')} ${data.delivery_dates.map(escapePick).join(', ')}</title>
+      <style>body{font:13px Arial,sans-serif;color:#111;margin:24px}h1{text-align:center;font-size:18px}p{line-height:1.5}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:5px;text-align:left}th{background:#eee;text-align:center}tfoot{display:table-row-group}tfoot th{background:#ddd;border-top:2px solid #333}.num{text-align:right}.pick-table{table-layout:fixed}.pick-table td{overflow-wrap:anywhere}.sheet{break-after:page;page-break-after:always}.sheet:last-child{break-after:auto;page-break-after:auto}.sign{display:flex;justify-content:space-around;margin-top:36px;font-weight:bold}@page{size:A4 portrait;margin:12mm}@media print{button{display:none}body{margin:0}}</style></head><body>
+      <button onclick="window.print()">In / Lưu PDF</button>${arrangeSheetsHtml(data)}</body></html>`;
+    win.document.open();win.document.write(html);win.document.close();
+  }catch(e){win.close();alert('Không lập được phiếu sắp hàng: '+e.message);}
+}
+let pickOrders=[];
+async function showPickOrders(){
+  const ids=[...document.querySelectorAll('.vehicle-pick-lot:checked')].map(x=>x.value);
+  if(!ids.length){alert('Đánh dấu lô cần xem đơn.');return;}
+  const qs=new URLSearchParams();ids.forEach(id=>qs.append('lot_ids',id));
+  try{
+    const x=await J(A+'/vehicle-pick-orders?'+qs.toString());
+    pickOrders=x.rows||[];
+    $('pickOrderChoices').innerHTML='<div class="sub">Muốn in riêng một số đơn: đánh dấu đơn dưới đây, sau đó bỏ dấu chọn lô ở bảng PRINT LOT. Lô vẫn đánh dấu sẽ lấy toàn bộ đơn.</div>'+pickOrders.map((r,i)=>`<label style="display:inline-block;margin:5px 16px 5px 0"><input type="checkbox" class="pick-order" data-i="${i}"> ${escapePick(r.print_lot_id)} · ${escapePick(r.loai_don)} · ${escapePick(r.ma_don_nguon)}</label>`).join('');
+  }catch(e){alert(e.message)}
+}
+async function printVehiclePickList(){
+  const ids=[...document.querySelectorAll('.vehicle-pick-lot:checked')].map(x=>x.value);
+  const orders=[...document.querySelectorAll('.pick-order:checked')].map(x=>pickOrders[Number(x.dataset.i)]);
+  if(!ids.length&&!orders.length){alert('Hãy chọn ít nhất một lô hoặc một đơn.');return;}
+  const win=window.open('','_blank');
+  if(!win){alert('Trình duyệt đang chặn cửa sổ in.');return;}
+  try{
+    const data=await J(A+'/vehicle-pick-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lot_ids:ids,orders})});
+    const html=`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Xuất kho tổng ${data.vehicles.map(escapePick).join(', ')} ${data.delivery_dates.map(escapePick).join(', ')}</title>
+      <style>body{font:13px Arial,sans-serif;color:#111;margin:24px}h1{text-align:center;font-size:18px}p{line-height:1.5}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:5px;text-align:left}th{background:#eee;text-align:center}tfoot{display:table-row-group}tfoot th{background:#ddd;border-top:2px solid #333}.num{text-align:right}.pick-table{table-layout:fixed}.pick-table td{overflow-wrap:anywhere}.sheet{break-after:page;page-break-after:always}.sheet:last-child{break-after:auto;page-break-after:auto}.sign{display:flex;justify-content:space-around;margin-top:36px;font-weight:bold}@page{size:A4 portrait;margin:12mm}@media print{button{display:none}body{margin:0}}</style></head><body>
+      <button onclick="window.print()">In / Lưu PDF</button>${pickSheetHtml('HC',data.sheets.HC,data)}${pickSheetHtml('PC',data.sheets.PC,data)}${pickSheetHtml('KHÁC',data.sheets['KHÁC'],data)}</body></html>`;
+    win.document.open();win.document.write(html);win.document.close();
+  }catch(e){win.close();alert('Không lập được phiếu xuất kho tổng: '+e.message);}
+}
+
+
+function viMoneyWords(n){
+ n=Math.round(Number(n||0)); if(!Number.isFinite(n)||n===0)return "Không đồng";
+ if(n<0)return "Âm "+viMoneyWords(-n);
+ const d=["không","một","hai","ba","bốn","năm","sáu","bảy","tám","chín"];
+ const u=["","nghìn","triệu","tỷ","nghìn tỷ","triệu tỷ"];
+ function r3(x,full){const tr=Math.floor(x/100),ch=Math.floor((x%100)/10),dv=x%10,a=[];
+  if(tr>0||full)a.push(d[tr],"trăm");
+  if(ch>1){a.push(d[ch],"mươi");if(dv===1)a.push("mốt");else if(dv===4)a.push("tư");else if(dv===5)a.push("lăm");else if(dv)a.push(d[dv]);}
+  else if(ch===1){a.push("mười");if(dv===5)a.push("lăm");else if(dv)a.push(d[dv]);}
+  else if(dv){if(tr>0||full)a.push("lẻ");a.push(d[dv]);}
+  return a.join(" ");
+ }
+ const g=[];while(n>0){g.push(n%1000);n=Math.floor(n/1000)}const a=[];
+ for(let i=g.length-1;i>=0;i--){if(!g[i])continue;const t=r3(g[i],i<g.length-1&&g[i]<100);if(t)a.push(t);if(u[i])a.push(u[i]);}
+ let s=a.join(" ").replace(/\s+/g," ").trim();return s.charAt(0).toUpperCase()+s.slice(1)+" đồng";
+}
+
+
+function splitPages(lines){
+  // PAGINATION V2 - ưu tiên tận dụng hết A4 trước khi sang trang.
+  const ONE_PAGE_CAP = 26;
+  const FIRST_PAGE_CAP = 24;
+  const MID_PAGE_CAP = 32;
+  const LAST_PAGE_MAX = 18;
+  const LAST_PAGE_MIN = 11;
+
+  const n=lines.length;
+  if(n<=ONE_PAGE_CAP) return [lines];
+
+  if(n<=FIRST_PAGE_CAP+LAST_PAGE_MAX){
+    let lastCount=Math.min(LAST_PAGE_MAX, Math.max(LAST_PAGE_MIN, Math.ceil(n*0.38)));
+    let firstCount=n-lastCount;
+    if(firstCount>FIRST_PAGE_CAP){
+      firstCount=FIRST_PAGE_CAP;
+      lastCount=n-firstCount;
+    }
+    return [lines.slice(0,firstCount),lines.slice(firstCount)];
+  }
+
+  const pages=[];
+  let pos=0;
+  pages.push(lines.slice(pos,pos+FIRST_PAGE_CAP));
+  pos+=FIRST_PAGE_CAP;
+
+  while(pos<n){
+    const remain=n-pos;
+    if(remain<=LAST_PAGE_MAX){
+      pages.push(lines.slice(pos));
+      break;
+    }
+    if(remain-MID_PAGE_CAP>0 && remain-MID_PAGE_CAP<LAST_PAGE_MIN){
+      const take=remain-LAST_PAGE_MIN;
+      pages.push(lines.slice(pos,pos+take));
+      pos+=take;
+    }else{
+      pages.push(lines.slice(pos,pos+MID_PAGE_CAP));
+      pos+=MID_PAGE_CAP;
+    }
+  }
+  return pages;
+}
+
+function viMoneyWords(n){
+ n=Math.round(Number(n||0)); if(!Number.isFinite(n)||n===0)return "Không đồng";
+ if(n<0)return "Âm "+viMoneyWords(-n);
+ const d=["không","một","hai","ba","bốn","năm","sáu","bảy","tám","chín"];
+ const u=["","nghìn","triệu","tỷ","nghìn tỷ","triệu tỷ"];
+ function r3(x,full){const tr=Math.floor(x/100),ch=Math.floor((x%100)/10),dv=x%10,a=[];
+  if(tr>0||full)a.push(d[tr],"trăm");
+  if(ch>1){a.push(d[ch],"mươi");if(dv===1)a.push("mốt");else if(dv===4)a.push("tư");else if(dv===5)a.push("lăm");else if(dv)a.push(d[dv]);}
+  else if(ch===1){a.push("mười");if(dv===5)a.push("lăm");else if(dv)a.push(d[dv]);}
+  else if(dv){if(tr>0||full)a.push("lẻ");a.push(d[dv]);}
+  return a.join(" ");
+ }
+ const g=[];while(n>0){g.push(n%1000);n=Math.floor(n/1000)}const a=[];
+ for(let i=g.length-1;i>=0;i--){if(!g[i])continue;const t=r3(g[i],i<g.length-1&&g[i]<100);if(t)a.push(t);if(u[i])a.push(u[i]);}
+ let s=a.join(" ").replace(/\s+/g," ").trim();return s.charAt(0).toUpperCase()+s.slice(1)+" đồng";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+function deliveryListHtml(lot,orders){
+  const staffCode=String(lot.planned_delivery_staff_code||'').trim();
+  const staffNames=[...new Set((orders||[])
+    .filter(o=>staffCode && String(o.delivery_staff?.code||'').trim()===staffCode)
+    .map(o=>String(o.delivery_staff?.name||'').trim()).filter(Boolean))];
+  const staffName=staffNames.length===1?staffNames[0]:'';
+  const pointIndex=new Map();
+  const kmValue=o=>{
+    let total=0;
+    for(const x of o.lines||[]){
+      const qty=Number(x.sl_km_thung||0)*Number(x.qc||1)+Number(x.sl_km_le||0);
+      if(!qty)continue;
+      const reference=Object.prototype.hasOwnProperty.call(x,'unit_price_promo_vat')
+        ? x.unit_price_promo_vat : x.unit_price_original_vat;
+      const price=Number(reference);
+      if(!Number.isFinite(price)||price<=0)return null;
+      total+=Math.round(qty*price);
+    }
+    return total;
+  };
+  const kmText=v=>v===null?'Thiếu giá KM':fmt(v);
+  const rows=(orders||[]).map((o,i)=>{
+    const key=o.customer?.canonical_code||o.customer?.code||o.invoice_no;
+    if(!pointIndex.has(key))pointIndex.set(key,pointIndex.size+1);
+    const ckTien=(o.lines||[]).reduce((s,x)=>s+Number(x.line_discount||0),0);
+    const traThuong=Number(o.reward_display_C||0);
+    const tichLuy=Number(o.reward_accum_B||0);
+    const phaiTra=Number(o.final_payable_D||0);
+
+    return `<tr>
+      <td style="text-align:center">${pointIndex.get(key)}</td>
+      <td>${o.invoice_no||""}</td>
+      <td class="kh-name">${o.customer?.code||""}${o.customer?.name?" - "+o.customer.name:""}</td>
+      <td class="sales-name">${o.sales_staff?.name||""}</td>
+      <td class="money">${kmText(kmValue(o))}</td>
+      <td class="money">${fmt(ckTien)}</td>
+      <td class="money">${fmt(traThuong)}</td>
+      <td class="money">${fmt(tichLuy)}</td>
+      <td class="money">${fmt(phaiTra)}</td>
+      <td class="blank-write"></td>
+      <td class="blank-write"></td>
+    </tr>`;
+  }).join("");
+
+  const kmValues=(orders||[]).map(kmValue);
+  const totalKm=kmValues.some(v=>v===null)?null:kmValues.reduce((s,v)=>s+v,0);
+  const totalBeforeEndDiscount=(orders||[]).reduce((s,o)=>s+Number(o.total_goods_A||0),0);
+  const totalCk=(orders||[]).reduce((s,o)=>s+(o.lines||[]).reduce((a,x)=>a+Number(x.line_discount||0),0),0);
+  const totalReward=(orders||[]).reduce((s,o)=>s+Number(o.reward_display_C||0),0);
+  const totalAccum=(orders||[]).reduce((s,o)=>s+Number(o.reward_accum_B||0),0);
+  const totalPayable=(orders||[]).reduce((s,o)=>s+Number(o.final_payable_D||0),0);
+
+  return `<div class="delivery-list-page">
+    <div class="delivery-list-title">DS ĐƠN GIAO THEO LÔ</div>
+
+    <div class="delivery-list-meta">
+      <span><b>Ngày giao:</b> ${String(lot.planned_delivery_date||"").slice(0,10)}</span>
+      <span><b>Mã lô:</b> ${lot.planned_lot_code||""}</span>
+      <span><b>NVGH:</b> ${escapePick(staffCode)}${staffName?' - '+escapePick(staffName):''}</span>
+    </div>
+
+    <table class="delivery-list-table">
+      <colgroup>
+        <col style="width:4%">
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:15%">
+        <col style="width:9%">
+        <col style="width:8%">
+        <col style="width:7%">
+        <col style="width:7%">
+        <col style="width:10%">
+        <col style="width:4%">
+        <col style="width:8%">
+      </colgroup>
+
+      <thead>
+        <tr>
+          <th>STT<br>giao</th>
+          <th>Số hóa đơn</th>
+          <th>Mã KH và Tên KH</th>
+          <th>Tên NVBH</th>
+          <th>KM<br>bằng hàng</th>
+          <th>CK<br>bằng tiền</th>
+          <th>Trả<br>thưởng</th>
+          <th>Tích<br>lũy</th>
+          <th>Phải trả</th>
+          <th>TM/CK</th>
+          <th>Trả hàng</th>
+        </tr>
+      </thead>
+
+      <tbody>${rows}</tbody>
+
+      <tfoot>
+        <tr class="lot-total-row">
+          <td colspan="4" class="total-label">CỘNG</td>
+          <td class="money">${kmText(totalKm)}</td>
+          <td class="money">${fmt(totalCk)}</td>
+          <td class="money">${fmt(totalReward)}</td>
+          <td class="money">${fmt(totalAccum)}</td>
+          <td class="money">${fmt(totalPayable)}</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div style="margin-top:10px;font-weight:bold">
+      KM bằng hàng + CK bằng tiền + Phải trả chưa trừ cuối đơn =
+      ${kmText(totalKm)} + ${fmt(totalCk)} + ${fmt(totalBeforeEndDiscount)} =
+      ${totalKm===null?'Chưa đủ giá để đối chiếu':fmt(totalKm+totalCk+totalBeforeEndDiscount)}
+    </div>
+    <div class="delivery-list-sign">
+      <div>KT LẬP BIỂU<div class="line"></div></div>
+      <div>NVGH<div class="line"></div></div>
+      <div>KT Công nợ<div class="line"></div></div>
+    </div>
+  </div>`;
+}
+
+function normalizeDeliveryListDom(){
+  document.querySelectorAll(".delivery-list-page").forEach(page=>{
+    const main=page.querySelector("table.delivery-list-table");
+    if(!main)return;
+
+    // Xóa mọi table phụ/mồ côi nằm trong page.
+    [...page.querySelectorAll("table")].forEach(t=>{
+      if(t!==main)t.remove();
+    });
+
+    // Xóa mọi TR mồ côi không nằm trong main table.
+    [...page.querySelectorAll(":scope > tr")].forEach(tr=>tr.remove());
+
+    // Đảm bảo chỉ có 1 tfoot.
+    const foots=[...main.querySelectorAll("tfoot")];
+    foots.slice(1).forEach(f=>f.remove());
+  });
+}
+
+// VG_DELIVERY_KM_DISPLAY_20261004: copies for rendering only; never mutate source lines.
+function deliveryDisplayLines(lines){
+ const out=[];
+ for(const x of lines||[]){
+  const st=Number(x.sl_thung||0),sl=Number(x.sl_le||0);
+  const kt=Number(x.sl_km_thung||0),kl=Number(x.sl_km_le||0);
+  const rawPrice=x.unit_price_original_vat;
+  const zeroPrice=rawPrice!==null && rawPrice!==undefined && String(rawPrice).trim()!=='' && Number(rawPrice)===0;
+  if(zeroPrice){
+   out.push({...x,sl_thung:st+kt,sl_le:sl+kl,display_km:true});
+  }else{
+   const hasSale=st!==0||sl!==0;
+   const hasPromo=kt!==0||kl!==0;
+   if(hasSale||!hasPromo)out.push({...x,display_km:false});
+   if(hasPromo)out.push({...x,sl_thung:kt,sl_le:kl,unit_price_original_vat:0,
+    unit_price_after_discount:0,line_discount:0,line_amount:0,display_km:true});
+  }
+ }
+ return out;
+}
+function deliverySourceMoneyNote(lines){
+ const conflicts=(lines||[]).filter(x=>x.unit_price_original_vat!==null&&x.unit_price_original_vat!==undefined&&String(x.unit_price_original_vat).trim()!==''&&Number(x.unit_price_original_vat)===0&&Number(x.line_amount||0)!==0);
+ return conflicts.length?`<div class="print-source-note">Cần đối chiếu dữ liệu nguồn: ${conflicts.map(x=>escapePick(x.sku||'')).join(', ')} có đơn giá 0 nhưng thành tiền khác 0. Tổng thanh toán vẫn giữ theo nguồn.</div>`:'';
+}
+function tableHead(){return `<thead><tr>
+ <th class=c-stt>STT</th><th class=c-sku>Mã SP</th><th class=c-name>Tên sản phẩm</th><th class=c-qc>QC</th><th class=c-su>Tổng SU</th>
+ <th class=c-qty>Thùng</th><th class=c-qty>Lẻ</th>
+ <th class=c-price>Đơn giá<br>gốc</th><th class=c-price>Giá sau<br>KM</th><th class=c-price>KM theo<br>dòng</th><th class=c-money>Thành tiền</th>
+ </tr></thead>`}
+function rowHtml(x,i){return `<tr><td>${i+1}</td><td>${escapePick(x.sku||'')}</td><td class=name-cell>${escapePick(x.name||'')}</td>
+ <td class=qty-cell>${escapePick(x.qc??'')}</td><td class=qty-cell>${x.qc!==null&&x.qc!==undefined&&String(x.qc).trim()!==''&&Number(x.qc)>0?fmt(Number(x.sl_thung||0)*Number(x.qc)+Number(x.sl_le||0)):(Number(x.sl_thung||0)===0?fmt(x.sl_le):'Thiếu QC')}</td><td class=qty-cell>${fmt(x.sl_thung)}</td><td class=qty-cell>${fmt(x.sl_le)}</td>
+ <td class=money-cell>${fmt(x.display_km?0:x.unit_price_original_vat)}</td><td class=money-cell>${fmt(x.display_km?0:x.unit_price_after_discount)}</td>
+ <td class=money-cell>${fmt(x.display_km?0:x.line_discount)}</td><td class=money-cell>${x.display_km?'Hàng KM':fmt(x.line_amount)}</td></tr>`}
+
+function invoiceHtml(o,copyNo){
+ const pages=splitPages(deliveryDisplayLines(o.lines||[]));let gi=0;
+ return pages.map((ls,pi)=>{
+  const first=pi===0,last=pi===pages.length-1,pn=pi+1,pt=pages.length;
+  const head=first?`<div class=invoice-title>PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+   <div class=info-grid><div>
+    <div class="info-line compact"><span><b>Số hóa đơn:</b> ${escapePick(o.invoice_no||'')}</span><span><b>Ngày tạo đơn:</b> ${escapePick(String(o.order_date||'').slice(0,10))}</span></div>
+    <div class=info-line><b>KH:</b> ${escapePick(o.customer?.code||'')}</div>
+    <div class=info-line><b>Tên KH & ĐT:</b> ${escapePick(o.customer?.name||'')}${o.customer?.phone?' - '+escapePick(o.customer.phone):''}</div>
+    <div class=info-line><b>ĐC giao hàng:</b> ${escapePick(o.customer?.delivery_address||'')}</div>
+   </div><div>
+    <div class=info-line><b>NPP:</b> CTY CP VĨNH GIANG - Lô J3-1, Khu CN Quế Võ 1, TP Bắc Ninh</div>
+    <div class=info-line><b>NVBH:</b> ${escapePick(o.sales_staff?.code||'')}${o.sales_staff?.name?' : '+escapePick(o.sales_staff.name):''}</div>
+    <div class=info-line><b>Tên NVGH:</b> ${escapePick(o.delivery_staff?.code||'')}${o.delivery_staff?.name?' : '+escapePick(o.delivery_staff.name):''}</div>
+   </div></div>`:`<div class=cont-head>Số hóa đơn: ${escapePick(o.invoice_no||'')}</div>`;
+  const rows=ls.map(x=>rowHtml(x,gi++)).join("");
+  const foot=last?`<table class=print-table><tbody><tr><th colspan=10 style="text-align:left">CỘNG</th><th class=money-cell>${fmt(o.total_goods_A)}</th></tr></tbody></table>
+   <div class=payment-grid>
+    <div class=qr-wrap><div class=qr-box>${o.qr_url?`<img src="${o.qr_url}" style="width:90px;height:90px;object-fit:contain">`:"MÃ QR<br>NHẬN TIỀN"}</div><div class=bank-info>
+     <div><b>Chủ TK:</b> ${o.bank?.account_name||"CÔNG TY CP VĨNH GIANG"} &nbsp; <b>Ngân hàng:</b> ${o.bank?.bank_name||""}</div>
+     <div><b>Số tài khoản:</b> ${o.bank?.account_no||""}</div>
+    </div></div>
+    <div class=money-info>
+     <div class=money-row><span>Tổng tiền hàng (A)</span><b>${fmt(o.total_goods_A)}</b></div>
+     <div class=money-row><span>Trả tích lũy (B)</span><b>${fmt(o.reward_accum_B)}</b></div>
+     <div class=money-row><span>Trả trưng bày (C)</span><b>${fmt(o.reward_display_C)}</b></div>
+     <div class="money-row final"><span>Phải trả cuối cùng (D=A-B-C)</span><b>${fmt(o.final_payable_D)}</b></div>
+     <div class=words><b>Số tiền (bằng chữ):</b> ${viMoneyWords(o.final_payable_D)}</div>
+    </div>
+   </div>
+   <div class=sign-grid><div>Nhân viên giao hàng<div class=sign-note>(Ký, ghi rõ họ tên)</div></div><div>Người nhận hàng<div class=sign-note>(Ký, ghi rõ họ tên)</div></div></div>`:"";
+  return `<div class=invoice-page><div class=page-no>LIÊN ${copyNo} · Trang ${pn}/${pt}</div>${head}<table class=print-table>${tableHead()}<tbody>${rows}</tbody></table>${last?deliverySourceMoneyNote(o.lines):""}${foot}</div>`;
+ }).join("");
+}
+
+
+function pointInvoiceHtml(group,copyNo){
+ const first=group[0],customer=first.customer||{},staff=first.delivery_staff||{};
+ const pointCode=customer.canonical_code||customer.code||'';
+ const total=group.reduce((sum,o)=>sum+Number(o.final_payable_D||0),0);
+ let html=`<div class="invoice-page point-slip"><div class="page-no">LIÊN ${copyNo} · PHIẾU GIAO ĐIỂM ${escapePick(pointCode)}</div>
+   <div class="invoice-title">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+   <div class="info-grid"><div><b>KH:</b> ${escapePick(pointCode)} - ${escapePick(customer.name)}<br><b>ĐT KH:</b> ${escapePick(customer.phone)}<br><b>ĐC giao:</b> ${escapePick(customer.delivery_address)}</div>
+   <div><b>NPP:</b> CTY CP VĨNH GIANG<br><b>Người giao:</b> ${escapePick(staff.code)} ${escapePick(staff.name)}<br><b>Số đơn:</b> ${group.length}</div></div>`;
+ for(const o of group){
+   html+=`<section class="source-order"><h3>${escapePick(o.invoice_no)} · ${escapePick(o.order_date)} · ${o.source_type==='B'?'MBW':'DMS'}</h3>
+      <p><b>NVBH:</b> ${escapePick(o.sales_staff?.code)} ${escapePick(o.sales_staff?.name)}</p>
+      <table class="print-table">${tableHead()}<tbody>${deliveryDisplayLines(o.lines||[]).map((x,i)=>rowHtml(x,i)).join('')}
+      <tr><th colspan="11" style="text-align:left">CỘNG ĐƠN</th><th class="money-cell">${fmt(o.total_goods_A)}</th></tr></tbody></table>
+      <div class="payment-grid"><div class="qr-wrap"><div class="qr-box">${o.qr_url?`<img src="${escapePick(o.qr_url)}" style="width:90px;height:90px">`:'MÃ QR NHẬN TIỀN'}</div><div class="bank-info">
+      <b>Chủ TK:</b> ${escapePick(o.bank?.account_name)}<br><b>Ngân hàng:</b> ${escapePick(o.bank?.bank_name)}<br><b>Số tài khoản:</b> ${escapePick(o.bank?.account_no)}</div></div>
+      <div class="money-info"><div class="money-row"><span>Tiền hàng</span><b>${fmt(o.total_goods_A)}</b></div>
+      <div class="money-row"><span>Tích lũy</span><b>${fmt(o.reward_accum_B)}</b></div><div class="money-row"><span>Trưng bày</span><b>${fmt(o.reward_display_C)}</b></div>
+      <div class="money-row final"><span>Phải trả đơn</span><b>${fmt(o.final_payable_D)}</b></div>
+      <div class="words">${viMoneyWords(o.final_payable_D)}</div></div></div></section>`;
+ }
+ html+=`<div class="money-row final point-total"><span>TỔNG PHẢI TRẢ CỦA ĐIỂM GIAO</span><b>${fmt(total)}</b></div>
+  <div class="sign-grid"><div>Nhân viên giao hàng<div class="sign-note">(Ký, ghi rõ họ tên)</div></div><div>Người nhận hàng<div class="sign-note">(Ký, ghi rõ họ tên)</div></div></div></div>`;
+ return html;
+}
+function groupedInvoiceHtml(orders){
+ const groups=new Map();
+ for(const o of orders){const key=o.customer?.canonical_code||o.customer?.code||o.invoice_no;
+  if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);}
+ return [...groups.values()].map(group=>group.length===1
+  ? invoiceHtml(group[0],1)+invoiceHtml(group[0],2)
+  : pointInvoiceHtml(group,1)+pointInvoiceHtml(group,2)).join('');
+}
+
+let currentPrintLotId="";
+let currentSnapshotLocked=false;
+let qrObjectUrls=[];
+
+async function refreshQrMap(printLotId,orders){
+  currentSnapshotLocked=false;
+  const nextUrls=[];
+  try{
+    const q=await J(A+"/print-lot/"+encodeURIComponent(printLotId)+"/qr-map");
+    const rows=q.rows||[];
+    if(rows.length!==(orders||[]).length)throw new Error("Số ảnh QR không khớp số đơn trong lô");
+    const map={};
+    for(const r of rows){
+      const response=await fetch(r.qr_url,{
+        headers:{"Authorization":"Bearer "+(localStorage.getItem("vg_token")||"")},
+        cache:"no-store"
+      });
+      if(!response.ok)throw new Error("Không tải được QR cho đơn "+r.ma_don_nguon+": HTTP "+response.status);
+      const blob=await response.blob();
+      if(!blob.type.startsWith("image/")||blob.size<100)throw new Error("Ảnh QR không hợp lệ: "+r.ma_don_nguon);
+      map[r.ma_don_nguon]=URL.createObjectURL(blob);
+      nextUrls.push(map[r.ma_don_nguon]);
+    }
+    for(const o of orders||[]){
+      if(!map[o.invoice_no])throw new Error("Thiếu QR cho đơn "+o.invoice_no);
+      o.qr_url=map[o.invoice_no];
+    }
+    qrObjectUrls.forEach(u=>URL.revokeObjectURL(u));
+    qrObjectUrls=nextUrls;
+    currentSnapshotLocked=true;
+  }catch(e){
+    nextUrls.forEach(u=>URL.revokeObjectURL(u));
+    if(!String(e.message||e).includes("PRINT LOT chưa khóa snapshot"))alert(e.message||e);
+  }
+  if($("printLotBtn"))$("printLotBtn").disabled=!currentSnapshotLocked;
+  if($("lockPrintBtn"))$("lockPrintBtn").textContent=currentSnapshotLocked?"Đã khóa bản in & QR":"Khóa bản in & tạo QR";
+}
+
+async function lockCurrentPrint(){
+  if(!currentPrintLotId)return alert("Chưa chọn PRINT LOT");
+  if(currentSnapshotLocked)return alert("Bản in đã khóa snapshot.");
+  if(!confirm("Khóa bản in và tạo QR cho toàn bộ đơn trong lô? Sau khi khóa, snapshot in/QR là bất biến."))return;
+  try{
+    const x=await J(A+"/print-lot/"+encodeURIComponent(currentPrintLotId)+"/lock-snapshot",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"dev"})
+    });
+    alert(`Đã khóa ${x.order_count||0} đơn · ${x.qr_count||0} QR`);
+    await openLot(currentPrintLotId);
+  }catch(e){alert(e.message)}
+}
+
+async function openLot(id){
+  try{
+    currentPrintLotId=id;
+    const x=await J(A+"/print-lot/"+encodeURIComponent(id)+"/preview");
+    await refreshQrMap(id,x.orders||[]);
+    document.querySelector('[data-tab="t4"]').click();
+    $("lotSummary").innerHTML=`<div class=kpis>
+      <div class=kpi><small>PRINT LOT</small><b>${id}</b></div>
+      <div class=kpi><small>Số đơn</small><b>${x.count}</b></div>
+      <div class=kpi><small>Tổng phải thu</small><b>${fmt(x.lot?.total_amount)}</b></div>
+    </div>`;
+    const printOrders=(x.orders||[]).slice().sort((a,b)=>{
+      const seq=Number(a.delivery_sequence??999999)-Number(b.delivery_sequence??999999);
+      const ak=a.customer?.canonical_code||a.customer?.code||'';
+      const bk=b.customer?.canonical_code||b.customer?.code||'';
+      return seq||ak.localeCompare(bk)||String(a.invoice_no).localeCompare(String(b.invoice_no));
+    });
+    $("invoicePreview").innerHTML=deliveryListHtml(x.lot||{},printOrders)+groupedInvoiceHtml(printOrders);
+    normalizeDeliveryListDom();
+  }catch(e){alert(e.message)}
+}
+
+let currentActualLotId="";
+let handoffPreviewLotId="";
+async function loadActualLot(id){
+  currentActualLotId=id;
+  handoffPreviewLotId="";
+  $("handoffPreview").innerHTML="";
+  $("handoffStatus").textContent="Đang tải trạng thái bàn giao...";
+  $("handoffPreviewBtn").disabled=true;
+  $("handoffCommitBtn").disabled=true;
+  const x=await J(A+"/print-lot/"+encodeURIComponent(id)+"/actual");
+  if(currentActualLotId!==id)return;
+  const p=x.planned||{},a=x.actual||{};
+  $("actualLotInfo").innerHTML=`<b>PRINT LOT:</b> ${id} · <b>Trạng thái:</b> ${x.lot_status||""} · <b>Bản in:</b> ${x.print_locked?"Đã khóa":"Chưa khóa"}`;
+  $("actualDate").value=String(a.actual_delivery_date||p.delivery_date||"").slice(0,10);
+  $("actualNvgh").value=a.actual_delivery_staff_code||p.delivery_staff_code||"";
+  $("actualDriver").value=a.actual_driver_code||p.driver_code||"";
+  $("actualVehicle").value=a.actual_vehicle_code||p.vehicle_code||"";
+  $("actualLotCode").value=a.actual_lot_code||p.lot_code||"";
+  $("actualReason").value=a.reason||"";
+  $("actualSource").value=a.warehouse_source_note||"";
+  ["actualDate","actualNvgh","actualDriver","actualVehicle","actualLotCode","actualReason","actualSource"].forEach(k=>$(k).disabled=!!x.locked);
+  $("finalizeLotBtn").disabled=!!x.locked||!x.print_locked;
+  $("finalizeStatus").innerHTML=x.locked?`<span class=ok><b>ĐÃ CHỐT GIAO</b></span>`:`<span class=warn>Chưa chốt giao</span>`;
+  await refreshHandoffState(id);
+}
+async function finalizeCurrentLot(){
+  if(!currentActualLotId)return alert("Chưa chọn PRINT LOT");
+  if(!confirm("Chốt giao toàn bộ lô? Sau khi Chốt, 5 trường thực tế sẽ bị khóa."))return;
+  const body={
+    username:"dev",
+    actual_delivery_date:$("actualDate").value,
+    actual_delivery_staff_code:$("actualNvgh").value.trim(),
+    actual_driver_code:$("actualDriver").value.trim(),
+    actual_vehicle_code:$("actualVehicle").value.trim(),
+    actual_lot_code:$("actualLotCode").value.trim(),
+    reason:$("actualReason").value.trim(),
+    warehouse_source_note:$("actualSource").value.trim()
+  };
+  try{
+    const x=await J(A+"/print-lot/"+encodeURIComponent(currentActualLotId)+"/finalize",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
+    });
+    alert(x.idempotent?"Lô đã được Chốt trước đó.":"Đã Chốt giao thành công.");
+    await loadActualLot(currentActualLotId);
+    await loadLots();
+  }catch(e){alert(e.message)}
+}
+
+async function refreshHandoffState(id){
+  try{
+    const s=await J(A+"/print-lot/"+encodeURIComponent(id)+"/handoff");
+    if(currentActualLotId!==id)return;
+    const h=s.handoff;
+    $("handoffStatus").innerHTML=h
+      ? `<span class=ok><b>ĐÃ BÀN GIAO QTGH</b> · ${h.handoff_id} · Batch ${h.source_batch_id||""}</span>`
+      : `<span class=warn>Chưa bàn giao QTGH</span>`;
+    $("handoffPreviewBtn").disabled=!!h;
+    $("handoffCommitBtn").disabled=!!h||handoffPreviewLotId!==id;
+  }catch(e){
+    if(currentActualLotId!==id)return;
+    $("handoffStatus").innerHTML=`<span class=bad>${e.message}</span>`;
+    $("handoffCommitBtn").disabled=true;
+  }
+}
+
+async function previewCurrentHandoff(){
+  if(!currentActualLotId)return alert("Chưa chọn PRINT LOT");
+  const id=currentActualLotId;
+  handoffPreviewLotId="";
+  $("handoffPreview").innerHTML="Đang kiểm tra bàn giao...";
+  $("handoffCommitBtn").disabled=true;
+  try{
+    const x=await J(A+"/print-lot/"+encodeURIComponent(id)+"/handoff-preview");
+    if(currentActualLotId!==id)return;
+    if(x.already_handed_off){
+      alert("Lô đã bàn giao QTGH.");
+      return refreshHandoffState(id);
+    }
+    const conflicts=x.conflicts||[];
+    $("handoffPreview").innerHTML=`
+      <div><b>PRINT LOT:</b> ${id}</div>
+      <div><b>Đơn:</b> ${x.order_count||0} · <b>Dòng:</b> ${x.line_count||0} · <b>Tổng:</b> ${fmt(x.total_amount||0)}</div>
+      <div><b>Ngày giao thực tế:</b> ${x.actual_delivery_date||""} · <b>NVGH:</b> ${x.actual_nvgh||""} · <b>Lô:</b> ${x.actual_lot||""}</div>
+      <div style="margin-top:6px">${x.eligible
+        ? '<span class=ok><b>PRE-FLIGHT ĐẠT — có thể bàn giao.</b></span>'
+        : '<span class=bad><b>PRE-FLIGHT KHÔNG ĐẠT</b></span><pre>'+JSON.stringify(conflicts,null,2)+'</pre>'}</div>`;
+    handoffPreviewLotId=x.eligible?id:"";
+    $("handoffCommitBtn").disabled=!x.eligible;
+  }catch(e){
+    if(currentActualLotId!==id)return;
+    $("handoffPreview").innerHTML="";
+    alert(e.message);
+  }
+}
+
+async function commitCurrentHandoff(){
+  if(!currentActualLotId)return alert("Chưa chọn PRINT LOT");
+  if(handoffPreviewLotId!==currentActualLotId)return alert("Hãy kiểm tra bàn giao lại cho đúng PRINT LOT trước khi bàn giao.");
+  const id=currentActualLotId;
+  if(!confirm("Bàn giao toàn bộ lô đã Chốt sang QTGH? Thao tác dùng transaction và chống bàn giao trùng."))return;
+  handoffPreviewLotId="";
+  $("handoffCommitBtn").disabled=true;
+  try{
+    const x=await J(A+"/print-lot/"+encodeURIComponent(id)+"/handoff",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"dev"})
+    });
+    if(currentActualLotId!==id)return;
+    alert(`Đã bàn giao QTGH: ${x.order_count||0} đơn · ${x.line_count||0} dòng`);
+    $("handoffPreview").innerHTML=
+      `<div class=ok><b>COMMITTED</b> · ${x.handoff_id}</div>
+       <div>UI04: Ngày ${x.ui04_filter?.ngay_giao||""} · NVGH ${x.ui04_filter?.ma_nvgh||""} · Lô ${x.ui04_filter?.ma_lo||""}</div>`;
+    await refreshHandoffState(id);
+    await loadLots();
+  }catch(e){alert(e.message)}
+}
+
+async function loadAudit(){
+  const x=await J(A+"/audit");
+  $("auditBody").innerHTML=(x.rows||[]).map(r=>`<tr>
+    <td>${r.id}</td><td>${r.event_type}</td><td>${r.object_type} · ${r.object_id}</td>
+    <td>${r.username||""}</td><td>${r.occurred_at||""}</td><td>${r.reason||""}</td>
+  </tr>`).join("");
+}
+
+$("reloadPrep").onclick=loadPrep;
+$("reloadLot").onclick=loadLots;
+$("printVehiclePick").onclick=printVehiclePickList;
+$("showPickOrders").onclick=showPickOrders;
+$("reloadAudit").onclick=loadAudit;
+$("handoffCommitBtn").onclick=commitCurrentHandoff;
+$("handoffPreviewBtn").onclick=previewCurrentHandoff;
+$("finalizeLotBtn").onclick=finalizeCurrentLot;
+$("lockPrintBtn").onclick=lockCurrentPrint;
+$("printLotBtn").onclick=async()=>{
+  if(!currentSnapshotLocked)return alert("Phải khóa bản in & tạo QR trước.");
+  try{
+    await Promise.all([...document.querySelectorAll("#invoicePreview img")].map(img=>img.decode()));
+    window.print();
+  }catch(e){alert("Ảnh QR chưa tải được; dừng in để tránh phiếu thiếu QR.")}
+};
+
+loadPrep().catch(()=>{});
+loadLots().catch(()=>{});
+loadAudit().catch(()=>{});
+
+async function guardUI02(){try{const p=await J('/api/access/profile');const v=p.screen_permissions?.QTGH_UI02||'NONE';if(v==='NONE')document.querySelector('.wrap').innerHTML='<div class="card bad"><h2>Không có quyền UI02</h2></div>';}catch(e){document.querySelector('.wrap').innerHTML='<div class="card bad">'+e.message+'</div>'}}
+guardUI02();
+</script>
+<script src="/ui/qtgh_misa_export.js?v=20261003_1"></script>
+</body>
+</html>
+
+<style id="ui02-total-fit-20261002">
+.delivery-list-table tr.lot-total-row td,
+.delivery-list-table tfoot .lot-total-row td {
+ font-size:9px!important; padding:4px 1px!important;
+ white-space:nowrap!important; overflow:hidden!important;
+ font-variant-numeric:tabular-nums;
+}
+@media print {
+ .delivery-list-table tr.lot-total-row td,
+ .delivery-list-table tfoot .lot-total-row td {
+  font-size:8.5px!important; padding:3px 1px!important;
+ }
+}
+</style>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VĨNH GIANG – Mini App V1.0</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--line:#dfe4ec;--text:#172033;--muted:#697386;--accent:#1769e0}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{background:#fff;border-right:1px solid var(--line);padding:18px}.brand{font-weight:800;font-size:21px;margin-bottom:4px}.ver{font-size:12px;color:var(--muted);margin-bottom:20px}.nav{display:grid;gap:7px}.nav button{width:100%;text-align:left;padding:11px 12px;border:1px solid transparent;background:#fff;border-radius:9px;cursor:pointer}.nav button.active{background:var(--accent);color:white}.main{padding:16px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.title{font-size:20px;font-weight:700}.small{font-size:12px;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}.frame{width:100%;height:calc(100vh - 92px);border:0;background:#fff;border-radius:12px}.templates{display:none}.templates.active{display:block}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.tpl{border:1px solid var(--line);border-radius:12px;padding:14px}.tpl h3{margin:0 0 8px;font-size:15px}.tpl p{font-size:12px;color:var(--muted);min-height:36px}.tpl a{display:inline-block;padding:9px 12px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:13px}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid var(--line)}.grid{grid-template-columns:1fr}.frame{height:75vh}}
+</style>
+<script>if(!localStorage.getItem('vg_token')) location.href='/login';window.vgFetch=(url,opt={})=>{opt.headers=Object.assign({},opt.headers||{}, {'Authorization':'Bearer '+localStorage.getItem('vg_token')});return fetch(url,opt);};</script></head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">VĨNH GIANG</div><div class="ver">Mini App V1.0 · Integrated Upload Prototype</div>
+    <div class="nav">
+      <button class="active" data-page="ui/QT_UI01.html">Dashboard quản trị</button>
+      <button data-page="ui/DM_UI01.html">Danh mục & Quản trị</button>
+      <button data-page="ui/XB_UI01.html">Xả – Bán bù</button>
+      <button data-page="ui/GH_UI01.html">Quyết toán đơn giao</button>
+      
+      
+      <button data-page="ui/KQ_UI01.html">Kết quả NV kinh doanh</button>
+      <button data-page="ui/KQ_UI02.html">Giao hàng / Lái xe / Phương tiện</button>
+      <button data-page="ui/BX_UI01.html">Bốc xếp</button>
+      <button data-templates="1">Template dữ liệu nguồn</button>
+      <button data-admin="1" data-page="ui/USER_ADMIN.html" style="display:none">Tài khoản & Phân quyền</button>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top"><div><div class="title" id="title">Dashboard quản trị</div><div class="small">Prototype tích hợp các UI đã chốt; không phát sinh thiết kế nghiệp vụ mới.</div></div><div class="small"><span id="who"></span> &nbsp; <button id="pwdBtn">Đổi mật khẩu</button> <button id="logoutBtn">Đăng xuất</button></div></div>
+    <div id="viewer" class="card" style="padding:0"><iframe class="frame" id="frame" src="ui/QT_UI01.html"></iframe></div>
+    <div id="templates" class="templates card">
+      <div style="font-weight:700;margin-bottom:4px">5 template chuẩn dữ liệu nguồn</div>
+      <div class="small" style="margin-bottom:14px">Trong bản triển khai thật, các nút bên dưới gọi API template và tải đúng file .xlsx phiên bản hiện hành. File sai version/structure sẽ bị từ chối khi upload.</div>
+      <div class="grid">
+        <div class="tpl"><h3>TPL01 – DMS Xả</h3><p>Chi tiết SKU + thưởng cấp đơn.</p><a href="/api/templates/dms-xa.xlsx" download>Lấy mẫu Excel</a></div>
+        <div class="tpl"><h3>TPL02 – DMS thật / MBW bán bù</h3><p>Mẫu chuẩn dùng chung để nạp GH/XB/KQ và chuẩn bị in chứng từ.</p><a href="/api/templates/dms-mbw-v2.xlsx" download>Lấy mẫu Excel chuẩn V2.1</a></div>
+        <div class="tpl"><h3>TPL03 – MISA Bán bù</h3><p>Bán bù tại kho/Admin.</p><a href="/api/templates/misa-ban-bu.xlsx" download>Lấy mẫu Excel</a></div>
+        <div class="tpl"><h3>TPL04 – MISA Bốc vào</h3><p>Phiếu nhập được đánh dấu tính bốc vào.</p><a href="/api/templates/misa-boc-vao.xlsx" download>Lấy mẫu Excel</a></div>
+        <div class="tpl"><h3>TPL05 – MISA Bốc ra</h3><p>Xuất bán buôn được đánh dấu tính bốc ra.</p><a href="#" onclick="alert('TPL05 được phát hành từ API template trong runtime backend; cấu trúc đã khóa trong DEV02 contract.');return false;">Lấy mẫu Excel</a></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const frame=document.getElementById('frame'),viewer=document.getElementById('viewer'),templates=document.getElementById('templates'),title=document.getElementById('title');
+const labels={};
+document.querySelectorAll('.nav button').forEach(btn=>btn.onclick=()=>{
+ document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
+ if(btn.dataset.page){viewer.style.display='block';templates.classList.remove('active');frame.src=btn.dataset.page+(btn.dataset.page.includes('?')?'&':'?')+'v='+Date.now();title.textContent=btn.textContent.trim();return;}
+ if(btn.dataset.templates){viewer.style.display='none';templates.classList.add('active');title.textContent='Template dữ liệu nguồn';return;}
+ if(btn.dataset.placeholder){viewer.style.display='block';templates.classList.remove('active');title.textContent=labels[btn.dataset.placeholder];frame.srcdoc=`<style>body{font-family:Arial;padding:30px;color:#172033}div{border:1px solid #dfe4ec;border-radius:12px;padding:20px}h2{margin-top:0}</style><div><h2>${labels[btn.dataset.placeholder]}</h2><p>Phân hệ này đã được chốt nghiệp vụ trong Hồ sơ đặc tả V1.0. Bản source tích hợp UI thật sẽ lấy từ prototype GH/XB gốc khi đưa vào repository triển khai.</p><p>Không thiết kế lại tại bước này.</p></div>`;
+ }
+});
+
+async function bootSecurity(){try{const r=await window.vgFetch('/api/access/profile');if(r.status===428){location.href='/change-password';return}if(!r.ok){location.href='/login';return}const p=await r.json();if(p.must_change_password){location.href='/change-password';return}who.textContent=(p.full_name||p.username)+' · '+p.role;const a=document.querySelector('[data-admin="1"]');if(a)a.style.display=p.is_admin?'':'none';}catch(e){location.href='/login'}}
+pwdBtn.onclick=()=>location.href='/change-password';
+logoutBtn.onclick=async()=>{try{await window.vgFetch('/api/auth/logout',{method:'POST'})}catch(e){}localStorage.clear();location.href='/login'};
+bootSecurity();
+</script>
+</body></html>

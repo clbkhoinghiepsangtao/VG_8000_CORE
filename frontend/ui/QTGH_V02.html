@@ -1,0 +1,2127 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vĩnh Giang - Quyết toán giao hàng Stable</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f5f7fb;color:#172033}
+.wrap{padding:16px}.card{background:#fff;border:1px solid #dfe5ef;border-radius:12px;padding:14px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 5px}h3{margin:0 0 12px}.sub{font-size:12px;color:#667085}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.tabs button{height:34px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:0 11px;cursor:pointer}
+.tabs button.active,.primary{background:#1769e0!important;color:#fff!important;border-color:#1769e0!important}
+.panel{display:none}.panel.active{display:block}.row{display:flex;gap:9px;align-items:end;flex-wrap:wrap}
+input,select,button{height:34px;border:1px solid #cbd5e1;border-radius:7px;padding:0 9px;background:#fff}
+button{cursor:pointer}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+th,td{border-bottom:1px solid #e6eaf0;padding:7px;text-align:right}th:first-child,td:first-child{text-align:left}
+.num{width:100px}.danger{color:#b42318}.ok{color:#067647}.section{margin-top:14px}.money{font-variant-numeric:tabular-nums}
+</style>
+<style id="ba-v11-hide-other-discount">
+#other { display:none !important; }
+label:has(#other) { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>VĨNH GIANG – QUYẾT TOÁN GIAO HÀNG</h1>
+    <div class="sub">Stable Clean V1.1.0 · Luồng UI04 → UI05 → UI06 → UI07 → UI08 → UI09 → UI10 → UI11</div>
+    <div class="tabs" id="tabs">
+      <button type="button" data-screen="QTGH_UI02" onclick="window.location.href='/ui/QTGH_UI02.html'">UI02 – Chuẩn bị/In/Chốt giao</button>
+      <button data-screen="QTGH_UI04" data-id="ui04" class="active">UI04 – Quyết toán tại bàn</button>
+      <button data-screen="QTGH_UI05" data-id="ui05">UI05 – Thủ quỹ</button>
+      <button data-screen="QTGH_UI06" data-id="ui06">UI06 – Kho nhận trả</button>
+      <button data-screen="QTGH_UI07" data-id="ui07">UI07 – Công nợ KH</button>
+      <button data-screen="QTGH_UI08" data-id="ui08">UI08 – Thu nợ KH</button>
+      <button data-screen="QTGH_UI09" data-id="ui09">UI09 – Nợ NVGH</button>
+      <button data-screen="QTGH_UI10" data-id="ui10">UI10 – Điều chỉnh</button>
+      <button data-screen="QTGH_UI11" data-id="ui11">UI11 – Kiểm kê quỹ</button>
+    </div>
+  </div>
+  <div id="ui04" class="panel card active"></div>
+  <div id="ui05" class="panel card"></div>
+  <div id="ui06" class="panel card"></div>
+  <div id="ui07" class="panel card"></div>
+  <div id="ui08" class="panel card"></div>
+  <div id="ui09" class="panel card"></div>
+  <div id="ui10" class="panel card"></div>
+  <div id="ui11" class="panel card"></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const fmt=v=>{const n=Number(v||0);return Number.isFinite(n)?Math.round(n).toLocaleString("vi-VN"):"0"};
+const parseMoney=v=>Number(String(v??"").replace(/[^\d-]/g,""))||0;
+async function api(url,opt={}){opt.headers=Object.assign({},opt.headers||{},{"Authorization":"Bearer "+(localStorage.getItem("vg_token")||"")});const r=await fetch(url,opt);let x={};try{x=await r.json()}catch(e){}if(r.status===401)location.href="/login";if(r.status===428)location.href="/change-password";if(!r.ok)throw new Error(x.detail||x.message||("HTTP "+r.status));return x}
+function activate(id){document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.id===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id===id))}
+document.querySelectorAll("#tabs button[data-id]").forEach(b=>b.onclick=async()=>{activate(b.dataset.id);try{await loaders[b.dataset.id]()}catch(e){$(b.dataset.id).innerHTML='<div class="danger">'+e.message+'</div>'}});
+
+
+let qtghAccess={},qtghRole="",qtghUsername="";
+async function bootstrapQtghAccess(){const p=await api('/api/access/profile');qtghAccess=p.screen_permissions||{};qtghRole=p.role||'';qtghUsername=p.username||'';document.querySelectorAll('#tabs [data-screen]').forEach(b=>b.style.display=(qtghAccess[b.dataset.screen]||'NONE')==='NONE'?'none':'');const a=[...document.querySelectorAll('#tabs button[data-id]')].filter(b=>b.style.display!=='none');if(!a.length){document.querySelector('.wrap').innerHTML='<div class="card danger">Không có quyền QTGH.</div>';return}activate(a[0].dataset.id);await loaders[a[0].dataset.id]();}
+let rows04=[],currentDraft=null;
+
+async function loadUI04(){
+  const ctx=await api("/api/qtgh-stable/context");
+  ui04.innerHTML=`<h3>UI04 – Quyết toán tại bàn & lập phiếu thu</h3>
+  <div class="sub">Nhập NVGH để tìm theo nhân viên, hoặc để trống NVGH và nhập chính xác mã đơn nguồn.</div>
+  <div class="row section">
+    <label>Ngày giao<br><select id="d4"><option value="">-- Tất cả ngày --</option>${(ctx.dates||[]).map(d=>`<option>${d}</option>`).join("")}</select></label>
+    <label>NVGH<br><input id="nv4" list="nv4list" placeholder="Gõ 500 → VG0500"><datalist id="nv4list"></datalist></label>
+    <label>Lô<br><input id="lo4" list="lo4list" placeholder="Để trống = tất cả lô"><datalist id="lo4list"></datalist></label>
+    <label>Tìm đơn<br><input id="q4" placeholder="Nhập mã đơn"></label>
+    <button id="search4" class="primary">Tìm kiếm</button>
+    <button type="button" onclick="openBankReport()">Mã Ngân Hàng</button>
+    <button type="button" onclick="openReductionReport()">chốt giảm trừ cuối đơn</button>
+  </div>
+  <div id="draft4" class="section"></div><div id="r4" class="section"></div>`;
+  nv4.oninput=()=>{clearTimeout(window.nvt);window.nvt=setTimeout(async()=>{const p=new URLSearchParams({q:nv4.value||""});if(d4.value)p.set("ngay_giao",d4.value);const x=await api("/api/qtgh-stable/ui04/suggest-nvgh?"+p);nv4list.innerHTML=(x.rows||[]).map(v=>`<option value="${v}"></option>`).join("")},120)};
+  lo4.oninput=()=>{clearTimeout(window.lot);window.lot=setTimeout(async()=>{if(!nv4.value)return;const p=new URLSearchParams({ma_nvgh:nv4.value,q:lo4.value||""});if(d4.value)p.set("ngay_giao",d4.value);const x=await api("/api/qtgh-stable/ui04/suggest-lo?"+p);lo4list.innerHTML=(x.rows||[]).map(v=>`<option value="${v}"></option>`).join("")},120)};
+  q4.oninput=render04; search4.onclick=search04;
+}
+async function search04(){
+  const nv=nv4.value.trim(),order=q4.value.trim();
+  if(!nv&&!order){alert("Nhập NVGH hoặc mã đơn nguồn chính xác");return}
+  const p=new URLSearchParams();
+  if(!order&&nv){p.set("ma_nvgh",nv);if(d4.value)p.set("ngay_giao",d4.value);if(lo4.value.trim())p.set("ma_lo",lo4.value.trim())}
+  else p.set("ma_don_nguon",order);
+  const x=await api("/api/qtgh-stable/ui04/pending-orders?"+p);rows04=x.rows||[];
+  if(order&&rows04.length){const staff=[...new Set(rows04.map(r=>r.ma_nvgh).filter(Boolean))];if(staff.length===1)nv4.value=staff[0]}
+  render04();
+  if(!nv&&!rows04.length)alert("Không có đơn đang chờ quyết toán khớp chính xác mã nguồn này");
+}
+function render04(){
+  const q=(q4?.value||"").trim().toUpperCase();const rows=rows04.filter(r=>!q||String(r.ma_don_nguon||"").toUpperCase().includes(q));
+  r4.innerHTML=`<div><b>${rows.length} đơn hiển thị / ${rows04.length} đơn còn chờ quyết toán</b></div>
+  <div class="row section"><label><input type="checkbox" id="all4" checked> Chọn tất cả</label><span class="sub">Bỏ chọn = đơn tiếp tục chờ.</span></div>
+  <table><thead><tr><th>Chọn</th><th>Đơn</th><th>Ngày</th><th>Lô</th><th>KH MBW</th><th>KH DMS</th><th>Loại</th><th>Trạng thái</th><th>Phải thu</th><th>TM</th><th>CK</th><th>Nợ KH</th><th>Nháp</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><input type="checkbox" class="pick4" data-order="${r.ma_don_nguon}" checked></td><td>${r.ma_don_nguon}</td><td>${r.ngay_giao||r.ngay_don||""}</td><td>${r.ma_lo||""}</td><td>${r.ma_kh_mbw||""}</td><td>${r.ma_kh_dms||""}</td><td>${r.loai_don||""}</td><td>${r.qt_state||""}</td><td>${fmt(r.so_phai_thu)}</td><td>${fmt(r.tien_mat)}</td><td>${fmt(r.tien_ck)}</td><td>${fmt(r.cong_no_kh)}</td><td><button class="open4" data-order="${r.ma_don_nguon}">Mở nháp</button></td></tr>`).join("")}
+  </tbody></table><div class="section"><button id="final4" class="primary">Quyết toán đơn đã chọn → Lập 1 phiếu thu</button></div>`;
+  all4.onchange=()=>document.querySelectorAll(".pick4").forEach(c=>c.checked=all4.checked);
+  document.querySelectorAll(".open4").forEach(b=>b.onclick=()=>openDraft(b.dataset.order));
+  final4.onclick=finalize04;
+}
+async function openDraft(order){currentDraft=await api("/api/qtgh-stable/ui04/open-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source_system:"DMS_MBW",ma_don_nguon:order})});await renderDraft()}
+async function bankOpts(selected){const x=await api("/api/qtgh-stable/banks");const rows=Array.isArray(x)?x:(x.rows||[]);return '<option value="">-- Chọn tài khoản --</option>'+rows.map(b=>`<option value="${b.id??b.account_no}" ${String(selected??"")==String(b.id??b.account_no)?"selected":""}>${[b.bank_name,b.account_no,b.account_name].filter(Boolean).join(" - ")}</option>`).join("")}
+async function renderDraft(){
+  const d=currentDraft,opts=await bankOpts(d.bank_account);
+  draft4.innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><h3>Quyết toán nháp – ${d.ma_don_nguon}</h3><button id="closeD">Đóng</button></div>
+  <table><thead><tr><th>SKU</th><th>HB đặt</th><th>HB trả</th><th>HB thực giao</th><th>KM đặt</th><th>KM trả</th><th>KM thực giao</th><th>Giá có VAT</th><th>CK/KM gốc</th><th>CK/KM sau QT</th><th>Thành tiền</th></tr></thead><tbody>
+  ${(d.lines||[]).map(q=>`<tr><td>${q.ma_sku}</td><td>${q.sl_hang_ban_dat}</td><td><input class="hb num" data-id="${q.id}" value="${q.sl_hang_ban_tra}"></td><td>${q.sl_hang_ban_thuc_giao}</td><td>${q.sl_hang_km_dat}</td><td><input class="km num" data-id="${q.id}" value="${q.sl_hang_km_tra}"></td><td>${q.sl_hang_km_thuc_giao}</td><td>${fmt(q.don_gia_co_vat)}</td><td>${fmt(q.ck_km_dong_goc)}</td><td><input class="ck num" data-id="${q.id}" value="${fmt(q.ck_km_dong_sau)}"></td><td>${fmt(q.thanh_tien_sau)}</td></tr>`).join("")}
+  </tbody></table>
+  <div class="row section"><label>Tích lũy<br><input id="acc" value="${fmt(d.accumulation_after)}"></label><label>Trưng bày<br><input id="disp" value="${fmt(d.display_after)}"></label></div>
+  <div class="row section"><button id="fullBreak">Đơn vỡ 100%</button><button id="saveGoods" class="primary">Lưu & tính lại tiền hàng</button></div>
+  <h3 class="section">Thanh toán</h3><div><b>Phải thu sau QT: ${fmt(d.so_phai_thu_sau_qt)}</b></div>
+  <div class="row section"><label>Tiền mặt<br><input id="cash" value="${fmt(d.tien_mat)}"></label><label>Chuyển khoản<br><input id="bank" value="${fmt(d.tien_ck_xac_nhan)}"></label><label>Tài khoản nhận<br><select id="ba">${opts}</select></label><label>Mã giao dịch<br><input id="txn" value="${d.bank_txn_id||""}"></label><button id="addBank">+ Tài khoản</button></div>
+  <div>Công nợ KH dự kiến: <b id="debtPreview">${fmt(d.cong_no_kh)}</b></div><div id="cashWarning" class="danger" style="display:none;margin-top:6px">Tiền mặt không được lớn hơn số phải thu.</div><div class="section"><button id="cash100">100% tiền mặt</button><button id="bank100">100% chuyển khoản</button><button id="savePay" class="primary">Lưu thanh toán nháp</button></div></div>`;
+  closeD.onclick=()=>draft4.innerHTML="";
+  const refreshDebtPreview=()=>{
+    const due=Number(d.so_phai_thu_sau_qt||0);
+    const cashAmt=parseMoney(cash.value);
+    const bankAmt=parseMoney(bank.value);
+    debtPreview.textContent=fmt(due-cashAmt-bankAmt);
+    if(cashAmt>due){
+      cashWarning.style.display="block";
+      savePay.disabled=true;
+    }else{
+      cashWarning.style.display="none";
+      savePay.disabled=false;
+    }
+  };
+  cash.oninput=refreshDebtPreview;
+  bank.oninput=refreshDebtPreview;
+  cash100.onclick=()=>{cash.value=fmt(d.so_phai_thu_sau_qt);bank.value="0";refreshDebtPreview()};
+  bank100.onclick=()=>{cash.value="0";bank.value=fmt(d.so_phai_thu_sau_qt);refreshDebtPreview()};
+  addBank.onclick=async()=>{const bank_name=prompt("Ngân hàng");if(!bank_name)return;const account_no=prompt("Số tài khoản");if(!account_no)return;const account_name=prompt("Chủ tài khoản","CÔNG TY CP VĨNH GIANG")||"";await api("/api/qtgh-stable/banks",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bank_name,account_no,account_name})});await renderDraft()};
+  fullBreak.onclick=async()=>{if(!confirm("Xác nhận đơn vỡ 100%?"))return;currentDraft=await api(`/api/qtgh-stable/ui04/draft/${d.id}/full-break`,{method:"POST"});await renderDraft();await search04()};
+  saveGoods.onclick=()=>saveDraft("recalc");savePay.onclick=()=>saveDraft("payment");
+}
+function draftPayload(){
+  const d=currentDraft;return {lines:(d.lines||[]).map(q=>({id:q.id,sl_hang_ban_tra:document.querySelector(`.hb[data-id="${q.id}"]`).value,sl_hang_km_tra:document.querySelector(`.km[data-id="${q.id}"]`).value,ck_km_dong_sau:parseMoney(document.querySelector(`.ck[data-id="${q.id}"]`).value)})),accumulation_after:parseMoney(acc.value),display_after:parseMoney(disp.value),other_order_discount_after:0,tien_mat:parseMoney(cash.value),tien_ck_xac_nhan:parseMoney(bank.value),bank_account:ba.value,bank_txn_id:txn.value,payment_mode:parseMoney(bank.value)>0?(parseMoney(cash.value)>0?"MIXED":"BANK_100"):"AUTO_CASH"}
+}
+async function saveDraft(kind){
+  const d=currentDraft;
+  if(kind==="payment"){
+    const due=Number(d.so_phai_thu_sau_qt||0);
+    const cashAmt=parseMoney(cash.value);
+    const bankAmt=parseMoney(bank.value);
+    if(cashAmt>due){
+      alert("Tiền mặt không được lớn hơn số phải thu");
+      return;
+    }
+    if(bankAmt>0&&(!ba.value||!txn.value.trim())){
+      alert("Có chuyển khoản: bắt buộc chọn tài khoản nhận và mã giao dịch");
+      return;
+    }
+  }
+  currentDraft=await api(`/api/qtgh-stable/ui04/draft/${d.id}/${kind}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(draftPayload())});
+  await renderDraft();
+  await search04();
+  alert(kind==="recalc"?"Đã tính lại tiền hàng":"Đã lưu thanh toán nháp");
+}
+async function finalize04(){const items=[...document.querySelectorAll(".pick4:checked")].map(c=>({source_system:"DMS_MBW",ma_don_nguon:c.dataset.order}));if(!items.length){alert("Chưa chọn đơn");return}if(!confirm(`Quyết toán ${items.length} đơn đã chọn?`))return;const y=await api("/api/qtgh-stable/ui04/finalize-selected",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ma_nvgh:nv4.value.trim(),items})});alert(y.message||"Đã quyết toán");await search04()}
+
+let receipts={};
+
+let ui05Rows=[],ui05StatusFilter="CHO_THU";
+
+function receiptDate5(r){
+  const raw=String(r.received_at||r.created_at||r.updated_at||r.ngay_phieu||"").trim();
+  if(!raw)return "";
+  const m=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m?m[1]:"";
+}
+
+
+function isWaiting5(r){
+  return String(r.status||"").trim().toUpperCase()==="CHO_THU";
+}
+
+function isReceived5(r){
+  const st=String(r.status||"").trim().toUpperCase();
+  return ["DA_THU_DU","THU_THIEU","DA_THU_THIEU"].includes(st);
+}
+
+function renderUI05Rows(){
+  const date=$("date5")?.value||"";
+
+  const dateRows=ui05Rows.filter(r=>{
+    if(date && receiptDate5(r)!==date)return false;
+    return true;
+  });
+
+  const waitCount=dateRows.filter(isWaiting5).length;
+  const doneCount=dateRows.filter(isReceived5).length;
+
+  if($("wait5"))$("wait5").textContent=`Phiếu Chờ Thu (${waitCount})`;
+  if($("done5"))$("done5").textContent=`Phiếu Đã Thu (${doneCount})`;
+  if($("all5"))$("all5").textContent=`Tất cả (${dateRows.length})`;
+
+  const rows=dateRows.filter(r=>{
+    if(ui05StatusFilter==="CHO_THU")return isWaiting5(r);
+    if(ui05StatusFilter==="DA_THU")return isReceived5(r);
+    return true;
+  });
+
+  const body=$("body5");
+  if(!body)return;
+
+  body.innerHTML=rows.map(r=>`<tr>
+    <td>${r.receipt_no||r.id}</td>
+    <td>${r.receipt_kind||r.source_type||""}</td>
+    <td>${r.ma_nvgh||""}</td>
+    <td>${fmt(r.expected_amount)}</td>
+    <td>${fmt(r.actual_amount)}</td>
+    <td>${fmt(r.variance_amount)}</td>
+    <td>${r.status||""}</td>
+    <td>${isWaiting5(r)
+      ?`<button class="take5" data-id="${r.id}">Lập phiếu / Thu tiền</button>`
+      :`<button class="print5" data-id="${r.id}">In phiếu</button>`}
+    </td>
+  </tr>`).join("");
+
+  if(!rows.length){
+    body.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#667085;padding:18px">
+      Không có phiếu phù hợp bộ lọc.
+    </td></tr>`;
+  }
+
+  document.querySelectorAll(".take5").forEach(b=>b.onclick=()=>openReceipt(+b.dataset.id));
+  document.querySelectorAll(".print5").forEach(b=>b.onclick=()=>printReceipt(+b.dataset.id));
+
+  const count=$("count5");
+  if(count)count.textContent=`${rows.length} phiếu hiển thị / ${dateRows.length} phiếu trong ngày lọc`;
+}
+
+function setStatus5(status){
+  ui05StatusFilter=status;
+
+  ["wait5","done5","all5"].forEach(id=>$(id)?.classList.remove("primary"));
+
+  const active=
+    status==="CHO_THU" ? "wait5" :
+    status==="DA_THU" ? "done5" : "all5";
+
+  $(active)?.classList.add("primary");
+  renderUI05Rows();
+}
+
+async function loadUI05(){
+  const x=await api("/api/qtgh-stable/ui05/cash");
+
+  ui05Rows=x.rows||[];
+  receipts={};
+  ui05Rows.forEach(r=>receipts[r.id]=r);
+
+  ui05.innerHTML=`<h3>UI05 – Thủ quỹ</h3>
+
+    <div class="row section">
+      <label>Ngày phiếu<br>
+        <input type="date" id="date5">
+      </label>
+
+      <button id="wait5" class="primary">Phiếu Chờ Thu</button>
+      <button id="done5">Phiếu Đã Thu</button>
+      <button id="all5">Tất cả</button>
+    </div>
+
+    <div id="count5" class="section"></div>
+    <div id="edit5" class="section"></div>
+
+    <table>
+      <thead><tr>
+        <th>Số phiếu</th>
+        <th>Loại phiếu</th>
+        <th>NVGH</th>
+        <th>Phải thu</th>
+        <th>Đã thu</th>
+        <th>Chênh lệch</th>
+        <th>Trạng thái</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="body5"></tbody>
+    </table>`;
+
+  date5.onchange=renderUI05Rows;
+  wait5.onclick=()=>setStatus5("CHO_THU");
+  done5.onclick=()=>setStatus5("DA_THU");
+  all5.onclick=()=>setStatus5("ALL");
+
+  renderUI05Rows();
+}
+
+function openReceipt(id){const r=receipts[id],due=Number(r.expected_amount||0);edit5.innerHTML=`<div class="card"><h3>Phiếu thu ${r.receipt_no||("#"+id)}</h3><div class="row"><label>Phải thu<br><input value="${fmt(due)}" readonly></label><label>Thực nộp<br><input id="actual5" value="${fmt(due)}"></label><label>Còn thiếu<br><input id="remain5" value="0" readonly></label></div><div class="row section"><label>Hướng xử lý<br><select id="res5"><option value="">-- Không phát sinh --</option><option value="NOP_SAU">Nộp sau</option><option value="TRU_LUONG">Trừ lương</option><option value="XIN_Y_KIEN_LANH_DAO">Xin ý kiến lãnh đạo</option></select></label><label>Ghi chú<br><input id="note5"></label></div><div class="section"><button id="save5" class="primary">Lưu thu tiền</button><button id="close5">Đóng</button></div></div>`;actual5.oninput=()=>remain5.value=fmt(due-parseMoney(actual5.value));close5.onclick=()=>edit5.innerHTML="";save5.onclick=async()=>{const actual=parseMoney(actual5.value),diff=due-actual;if(actual>due){alert("Không cho phép thu thừa");return}if(diff>0&&!res5.value){alert("Nộp thiếu bắt buộc chọn hướng xử lý");return}await api(`/api/qtgh-stable/ui05/cash/${id}/receive-stable`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({actual_amount:actual,resolution_code:res5.value,resolution_note:note5.value||""})});alert("Đã lưu phiếu thu");await loadUI05()}}
+async function printReceipt(id){
+  // INTERNAL_RECEIPT_V1
+  const w=window.open("","_blank","width=900,height=900");
+  if(!w){alert("Cho phép pop-up để in phiếu");return}
+  try{
+    const r=await api(`/api/qtgh-stable/ui05/cash/${id}/print-data`);
+    if(!r.print_html)throw new Error("Chưa có mẫu phiếu thu nội bộ");
+    w.document.open();w.document.write(r.print_html);w.document.close();
+  }catch(e){w.close();alert("Không mở được phiếu thu: "+(e.message||e))}
+}
+
+let ui06Mode="PENDING",ui06Pending=[],ui06Requests=[];
+
+async function loadUI06(){
+  ui06.innerHTML=`<h3>UI06 – Kho nhận trả</h3>
+    <div class="row section">
+      <button id="u6Pending" class="primary">Đơn chờ gom</button>
+      <button id="u6Wait">Phiếu Chờ Nhận</button>
+      <button id="u6Done">Phiếu Đã Nhận</button>
+    </div>
+    <div id="u6body" class="section"></div>`;
+
+  u6Pending.onclick=()=>setU6Mode("PENDING");
+  u6Wait.onclick=()=>setU6Mode("WAIT");
+  u6Done.onclick=()=>setU6Mode("DONE");
+
+  await setU6Mode("PENDING");
+}
+
+async function setU6Mode(mode){
+  ui06Mode=mode;
+  ["u6Pending","u6Wait","u6Done"].forEach(id=>$(id)?.classList.remove("primary"));
+  $(mode==="PENDING"?"u6Pending":mode==="WAIT"?"u6Wait":"u6Done")?.classList.add("primary");
+
+  if(mode==="PENDING"){
+    const x=await api("/api/qtgh-stable/ui06/pending-orders");
+    ui06Pending=x.rows||[];
+    renderU6Pending();
+  }else{
+    const status=mode==="WAIT"?"CHO_NHAN":"DA_NHAN";
+    const x=await api("/api/qtgh-stable/ui06/requests?status="+status);
+    ui06Requests=x.rows||[];
+    renderU6Requests();
+  }
+}
+
+function renderU6Pending(){
+  if(!ui06Pending.length){
+    u6body.innerHTML='<div class="sub">Không có đơn trả hàng chờ gom.</div>';
+    return;
+  }
+
+  u6body.innerHTML=ui06Pending.map(g=>`
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <h3>${g.ma_nvgh} · ${g.order_count} đơn trả</h3>
+          <div class="sub">Tổng SL trả: ${fmt(g.total_return_qty)}</div>
+        </div>
+        <button class="group6 primary" data-nv="${g.ma_nvgh}">Gom đơn → Phiếu yêu cầu trả kho</button>
+      </div>
+
+      <div class="section">
+        <label><input type="checkbox" class="all6" data-nv="${g.ma_nvgh}" checked> Chọn toàn bộ đơn</label>
+      </div>
+
+      ${g.orders.map(o=>`
+        <div class="card" style="margin-top:8px">
+          <label>
+            <input type="checkbox" class="pick6" data-nv="${g.ma_nvgh}" data-id="${o.draft_order_id}" checked>
+            <b>${o.ma_don_nguon}</b> · ${o.ngay_giao||""} · ${o.ma_lo||""}
+          </label>
+          <table>
+            <thead><tr><th>SKU</th><th>HB trả</th><th>KM trả</th><th>Tổng trả</th></tr></thead>
+            <tbody>${(o.lines||[]).map(l=>`<tr>
+              <td>${l.ma_sku}</td>
+              <td>${fmt(l.sl_hb_tra)}</td>
+              <td>${fmt(l.sl_km_tra)}</td>
+              <td><b>${fmt(l.sl_tra)}</b></td>
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>`).join("")}
+    </div>`).join("");
+
+  document.querySelectorAll(".all6").forEach(c=>{
+    c.onchange=()=>document.querySelectorAll(`.pick6[data-nv="${c.dataset.nv}"]`).forEach(x=>x.checked=c.checked);
+  });
+
+  document.querySelectorAll(".group6").forEach(b=>{
+    b.onclick=()=>groupU6(b.dataset.nv);
+  });
+}
+
+async function groupU6(nv){
+  const ids=[...document.querySelectorAll(`.pick6[data-nv="${nv}"]:checked`)].map(c=>Number(c.dataset.id));
+  if(!ids.length){
+    alert("Chưa chọn đơn để gom");
+    return;
+  }
+  if(!confirm(`Gom ${ids.length} đơn của ${nv} thành Phiếu yêu cầu trả kho?`))return;
+
+  const y=await api("/api/qtgh-stable/ui06/group",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ma_nvgh:nv,draft_order_ids:ids})
+  });
+
+  alert(`Đã tạo ${y.request_no}`);
+  await setU6Mode("WAIT");
+}
+
+function renderU6Requests(){
+  if(!ui06Requests.length){
+    u6body.innerHTML='<div class="sub">Không có phiếu phù hợp.</div>';
+    return;
+  }
+
+  u6body.innerHTML=`<table>
+    <thead><tr>
+      <th>Phiếu</th><th>NVGH</th><th>Số đơn</th>
+      <th>SL-phải trả</th><th>SL-thực nhận hiệu lực</th>
+      <th>Trạng thái</th><th></th>
+    </tr></thead>
+    <tbody>${ui06Requests.map(r=>`<tr>
+      <td>${r.request_no}</td>
+      <td>${r.ma_nvgh}</td>
+      <td>${r.order_count}</td>
+      <td>${fmt(r.total_required)}</td>
+      <td>${fmt(r.total_actual)}</td>
+      <td>${r.status}</td>
+      <td><button class="openReq6" data-id="${r.id}">${r.status==="CHO_NHAN"?"Nhận kho":"Xem phiếu"}</button>${r.status==="DA_NHAN"?` <button class="printReq6" data-id="${r.id}">In phiếu</button>`:""}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+
+  document.querySelectorAll(".openReq6").forEach(b=>b.onclick=()=>openU6Request(Number(b.dataset.id))); document.querySelectorAll(".printReq6").forEach(b=>b.onclick=()=>printU6Request(Number(b.dataset.id)));
+}
+
+async function openU6Request(id){
+  const r=await api(`/api/qtgh-stable/ui06/requests/${id}`);
+  const locked=r.status==="DA_NHAN";
+
+  u6body.innerHTML=`<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div>
+        <h3>Phiếu yêu cầu trả kho ${r.request_no}</h3>
+        <div class="sub">NVGH: ${r.ma_nvgh} · ${r.orders.length} đơn · Trạng thái: ${r.status}</div>
+      </div>
+      <button id="back6">Quay lại</button>
+    </div>
+
+    <div class="section"><b>Đơn nguồn:</b> ${r.orders.map(o=>o.ma_don_nguon).join(", ")}</div>
+
+    <table>
+      <thead><tr>
+        <th>SKU</th><th>Tên SKU</th>
+        <th>SL-phải trả</th><th>SL-thực nhận hiệu lực</th>
+      </tr></thead>
+      <tbody>${r.lines.map(l=>`<tr>
+        <td>${l.ma_sku}</td>
+        <td>${l.ten_sku||""}</td>
+        <td><b>${fmt(l.sl_phai_tra)}</b></td>
+        <td>${locked
+          ?`<b>${fmt(l.sl_thuc_nhan_hieu_luc??l.sl_thuc_nhan)}</b>${Number(l.sl_thuc_nhan_hieu_luc??l.sl_thuc_nhan)!==Number(l.sl_thuc_nhan)?`<div class="sub">Gốc: ${fmt(l.sl_thuc_nhan)}</div>`:""}`
+          :`<input class="actual6 num" data-id="${l.id}" data-max="${l.sl_phai_tra}" value="${l.sl_thuc_nhan}">`}
+        </td>
+      </tr>`).join("")}</tbody>
+    </table>
+
+    ${locked?`<div class="section"><button id="printReceive6" class="primary">In phiếu nhận kho</button></div>`:`<div class="section"><button id="saveReceive6" class="primary">Lưu xác nhận nhận kho</button></div>`}
+  </div>`;
+
+  back6.onclick=()=>setU6Mode(locked?"DONE":"WAIT");
+
+  if(locked && $("printReceive6")){ printReceive6.onclick=()=>printU6Request(id); }
+
+  if(!locked){
+    saveReceive6.onclick=async()=>{
+      const lines=[...document.querySelectorAll(".actual6")].map(inp=>({
+        id:Number(inp.dataset.id),
+        sl_thuc_nhan:Number(inp.value||0),
+        max:Number(inp.dataset.max||0)
+      }));
+
+      const over=lines.find(x=>x.sl_thuc_nhan>x.max);
+      if(over){
+        alert("SL-thực nhận không được vượt SL-phải trả");
+        return;
+      }
+      const neg=lines.find(x=>x.sl_thuc_nhan<0);
+      if(neg){
+        alert("SL-thực nhận không được âm");
+        return;
+      }
+
+      if(!confirm("Xác nhận lưu số lượng thực nhận và khóa phiếu?"))return;
+
+      const y=await api(`/api/qtgh-stable/ui06/requests/${id}/receive`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({lines:lines.map(x=>({id:x.id,sl_thuc_nhan:x.sl_thuc_nhan}))})
+      });
+
+      alert("Đã xác nhận nhận kho.");
+      await setU6Mode("DONE");
+    };
+  }
+}
+
+
+async function printU6Request(id){
+  // VG_PRINT_FORMS_20261003
+  const escReturnPrint=v=>String(v??"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]));
+  const r=await api(`/api/qtgh-stable/ui06/requests/${id}`);
+
+  if(r.status!=="DA_NHAN"){
+    alert("Chỉ in phiếu sau khi Thủ kho đã xác nhận nhận hàng.");
+    return;
+  }
+
+  const w=window.open("","_blank","width=1000,height=1000");
+  if(!w){
+    alert("Trình duyệt đang chặn cửa sổ in. Hãy cho phép pop-up.");
+    return;
+  }
+
+  w.document.write(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Phiếu nhận kho ${r.request_no}</title>
+<style>
+body{font-family:Arial,sans-serif;color:#111;padding:16mm;font-size:13px}
+h1,h2{text-align:center;margin:4px 0}
+.sub{text-align:center;color:#555;margin-bottom:18px}
+table{width:100%;border-collapse:collapse;margin-top:14px}
+th,td{border:1px solid #999;padding:7px}
+th{text-align:center}
+td:nth-child(3),td:nth-child(4){text-align:right}
+.info{margin-top:10px}
+.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:25px;margin-top:45px;text-align:center}
+.sign div{min-height:110px}
+.tools{margin-bottom:12px}
+@media print{.tools{display:none}body{padding:8mm}}
+</style>
+<style id="ba-v11-hide-other-discount">
+#other { display:none !important; }
+label:has(#other) { display:none !important; }
+</style>
+</head>
+<body>
+<div class="tools"><button onclick="window.print()">In phiếu</button></div>
+<h2>CÔNG TY CP VĨNH GIANG</h2>
+<h1>PHIẾU NHẬN KHO</h1>
+<div class="sub">${r.request_no}</div>
+<div class="info"><b>Người trả kho:</b> ${escReturnPrint(r.ma_nvgh||"")}${r.ma_nvgh_name?" – "+escReturnPrint(r.ma_nvgh_name):""}</div>
+<div class="info"><b>Đơn nguồn:</b> ${(r.orders||[]).map(o=>o.ma_don_nguon).join(", ")}</div>
+<div class="info"><b>Thời gian nhận:</b> ${r.received_at||""}</div>
+<table>
+<thead><tr><th>SKU</th><th>Tên SKU</th><th>SL-phải trả</th><th>SL-thực nhận</th></tr></thead>
+<tbody>
+${(r.lines||[]).map(l=>`<tr>
+<td>${l.ma_sku||""}</td>
+<td>${l.ten_sku||""}</td>
+<td>${fmt(l.sl_phai_tra)}</td>
+<td>${fmt(l.sl_thuc_nhan)}</td>
+</tr>`).join("")}
+</tbody>
+</table>
+<div class="sign">
+<div><b>NVGH</b><br><br><br><br>(Ký, ghi rõ họ tên)</div>
+<div><b>Thủ kho</b><br><br><br><br>(Ký, ghi rõ họ tên)</div>
+<div><b>Kế toán</b><br><br><br><br>(Ký, ghi rõ họ tên)</div>
+</div>
+</body>
+</html>`);
+
+  w.document.close();
+  w.focus();
+}
+
+
+let ui07Groups=[],ui07Batch=null;
+
+async function loadUI07(){
+  ui07.innerHTML=`<h3>UI07 – Công nợ & Thu nợ KH theo NVGH</h3>
+    <div class="sub">Chọn NVGH → Khách hàng → Hóa đơn. Thu nợ phân bổ đơn cũ trước.</div>
+
+    <div class="row section">
+      <label>NVGH<br>
+        <input id="nv7" list="nv7list" placeholder="Gõ 500 → VG0500">
+        <datalist id="nv7list"></datalist>
+      </label>
+      <button id="search7" class="primary">Tìm công nợ</button>
+    </div>
+
+    <div id="summary7" class="section"></div>
+    <div id="body7" class="section"></div>`;
+
+  nv7.oninput=()=>{
+    clearTimeout(window.nv7t);
+    window.nv7t=setTimeout(async()=>{
+      const x=await api("/api/qtgh-stable/ui04/suggest-nvgh?q="+encodeURIComponent(nv7.value||""));
+      nv7list.innerHTML=(x.rows||[]).map(v=>`<option value="${v}"></option>`).join("");
+    },120);
+  };
+
+  search7.onclick=searchUI07;
+}
+
+async function searchUI07(){
+  const nv=nv7.value.trim();
+  if(!nv){
+    alert("Chọn NVGH");
+    return;
+  }
+
+  const x=await api("/api/qtgh-stable/ui07/customer-groups?ma_nvgh="+encodeURIComponent(nv));
+  ui07Groups=x.rows||[];
+  ui07Batch=x.batch;
+
+  const cash=Number(ui07Batch?.cash_total||0);
+  const bank=Number(ui07Batch?.bank_total||0);
+
+  summary7.innerHTML=`<div class="card">
+    <b>Phiên thu nợ NVGH ${nv}</b>
+    · Tiền mặt tạm chốt: <b>${fmt(cash)}</b>
+    · Chuyển khoản: <b>${fmt(bank)}</b>
+    <button id="finalCash7" class="primary" style="margin-left:12px">Lập phiếu thu tổng tiền mặt → UI05</button>
+  </div>`;
+
+  finalCash7.onclick=()=>finalizeCash7(nv);
+
+  renderUI07();
+}
+
+function renderUI07(){
+  if(!ui07Groups.length){
+    body7.innerHTML='<div class="sub">NVGH này không có khách hàng còn nợ.</div>';
+    return;
+  }
+
+  body7.innerHTML=ui07Groups.map((g,idx)=>`
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <h3>KH ${g.ma_kh_chuan||g.ma_kh_key||""}</h3>
+          <div class="sub">
+            Mã gốc: ${g.ma_kh_nguon||""}
+            ${g.ten_kh?` · ${g.ten_kh}`:""}
+            · Tổng nợ: <b>${fmt(g.total_debt)}</b>
+          </div>
+        </div>
+        <button class="collect7 primary" data-idx="${idx}">Thu nợ khách hàng này</button>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th>Hóa đơn</th>
+          <th>Ngày</th>
+          <th>Còn nợ</th>
+          <th>NVGH</th>
+        </tr></thead>
+        <tbody>
+        ${(g.invoices||[]).map(r=>`<tr>
+          <td>${r.ma_don_nguon||""}</td>
+          <td>${r.ngay_sort||""}</td>
+          <td>${fmt(r.balance)}</td>
+          <td>${r.ma_nvgh||""}</td>
+        </tr>`).join("")}
+        </tbody>
+      </table>
+
+      <div id="collectForm7_${idx}" class="section"></div>
+    </div>`).join("");
+
+  document.querySelectorAll(".collect7").forEach(b=>{
+    b.onclick=()=>openCollect7(Number(b.dataset.idx));
+  });
+}
+
+async function openCollect7(idx){
+  const g=ui07Groups[idx];
+  const host=$(`collectForm7_${idx}`);
+  const bx=await api("/api/qtgh-stable/banks");
+  const banks=Array.isArray(bx)?bx:(bx.rows||[]);
+
+  host.innerHTML=`<div class="card">
+    <h3>Thu nợ KH ${g.ma_kh_chuan||g.ma_kh_key}</h3>
+    <div class="sub">Phân bổ tự động đơn cũ trước → đơn mới sau.</div>
+
+    <div class="row section">
+      <label>Tiền mặt<br><input id="cash7_${idx}" value="0"></label>
+      <label>Chuyển khoản<br><input id="bank7_${idx}" value="0"></label>
+      <label>Tài khoản nhận<br>
+        <select id="ba7_${idx}">
+          <option value="">-- Chọn tài khoản --</option>
+          ${banks.map(b=>`<option value="${b.id??b.account_no}">${[b.bank_name,b.account_no,b.account_name].filter(Boolean).join(" - ")}</option>`).join("")}
+        </select>
+      </label>
+      <label>Mã giao dịch<br><input id="txn7_${idx}"></label>
+    </div>
+
+    <div class="section">
+      <button id="save7_${idx}" class="primary">Lưu tạm khách hàng</button>
+      <button id="close7_${idx}">Đóng</button>
+    </div>
+  </div>`;
+
+  $(`close7_${idx}`).onclick=()=>host.innerHTML="";
+  $(`save7_${idx}`).onclick=()=>saveCollect7(idx);
+}
+
+async function saveCollect7(idx){
+  const g=ui07Groups[idx];
+  const cash=parseMoney($(`cash7_${idx}`).value);
+  const bank=parseMoney($(`bank7_${idx}`).value);
+  const ba=$(`ba7_${idx}`).value;
+  const txn=$(`txn7_${idx}`).value.trim();
+
+  if(cash+bank<=0){
+    alert("Chưa nhập số tiền thu");
+    return;
+  }
+
+  if(cash+bank>Number(g.total_debt||0)){
+    alert("Số tiền thu vượt tổng nợ khách hàng");
+    return;
+  }
+
+  if(bank>0 && (!ba || !txn)){
+    alert("Có chuyển khoản: bắt buộc chọn tài khoản nhận và mã giao dịch");
+    return;
+  }
+
+  const y=await api("/api/qtgh-stable/ui07/customer-collect",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      ma_nvgh:nv7.value.trim(),
+      ma_kh_key:g.ma_kh_key,
+      cash_amount:cash,
+      bank_amount:bank,
+      bank_account:ba,
+      bank_txn_id:txn
+    })
+  });
+
+  alert("Đã lưu tạm thu nợ khách hàng.");
+  await searchUI07();
+}
+
+async function finalizeCash7(nv){
+  if(!confirm("Lập phiếu thu tổng tiền mặt của phiên này sang UI05?"))return;
+
+  const y=await api("/api/qtgh-stable/ui07/finalize-cash-receipt",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ma_nvgh:nv})
+  });
+
+  alert(`Đã tạo phiếu thu #${y.cash_receipt_id} · Tiền mặt ${fmt(y.cash_total)}. Chuyển khoản ${fmt(y.bank_total)} không đưa qua Thủ quỹ.`);
+  await searchUI07();
+}
+
+
+let ui08Rows=[];
+
+async function loadUI08(){
+  ui08.innerHTML=`<h3>UI08 – Theo dõi hóa đơn còn nợ</h3>
+    <div class="sub">Tra cứu hóa đơn còn nợ và NVGH đã đi giao chính hóa đơn đó.</div>
+
+    <div class="row section">
+      <label>NVGH<br>
+        <input id="nv8" list="nv8list" placeholder="Gõ 500 → VG0500">
+        <datalist id="nv8list"></datalist>
+      </label>
+
+      <label>Tìm hóa đơn / khách hàng<br>
+        <input id="q8" placeholder="Nhập mã đơn hoặc mã KH">
+      </label>
+
+      <button id="search8" class="primary">Tìm kiếm</button>
+      <button id="all8">Tất cả</button>
+    </div>
+
+    <div id="summary8" class="section"></div>
+    <div id="body8" class="section"></div>`;
+
+  nv8.oninput=()=>{
+    clearTimeout(window.nv8t);
+    window.nv8t=setTimeout(async()=>{
+      const x=await api("/api/qtgh-stable/ui04/suggest-nvgh?q="+encodeURIComponent(nv8.value||""));
+      nv8list.innerHTML=(x.rows||[]).map(v=>`<option value="${v}"></option>`).join("");
+    },120);
+  };
+
+  q8.oninput=renderUI08;
+  search8.onclick=searchUI08;
+  all8.onclick=()=>{
+    nv8.value="";
+    q8.value="";
+    searchUI08();
+  };
+
+  await searchUI08();
+}
+
+async function searchUI08(){
+  const x=await api("/api/qtgh-stable/ui07/debts");
+  const rows=x.rows||[];
+
+  ui08Rows=rows.filter(r=>{
+    const bal=Number(r.balance??r.con_no??r.so_con_no??r.debt_balance??0);
+    return bal>0;
+  });
+
+  renderUI08();
+}
+
+function renderUI08(){
+  const nv=String(nv8?.value||"").trim().toUpperCase();
+  const q=String(q8?.value||"").trim().toUpperCase();
+
+  const rows=ui08Rows.filter(r=>{
+    const rnv=String(r.ma_nvgh||"").trim().toUpperCase();
+    if(nv && rnv!==nv)return false;
+
+    if(q){
+      const hay=[
+        r.ma_don_nguon,
+        r.ma_kh_chuan,
+        r.ma_kh_nguon,
+        r.ma_kh_dms,
+        r.ma_kh_mbw,
+        r.ten_kh
+      ].map(v=>String(v||"").toUpperCase()).join(" ");
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  });
+
+  const total=rows.reduce((s,r)=>s+Number(r.balance??r.con_no??r.so_con_no??r.debt_balance??0),0);
+
+  summary8.innerHTML=`<b>${rows.length} hóa đơn còn nợ</b> · Tổng còn nợ: <b>${fmt(total)}</b>`;
+
+  body8.innerHTML=`<table>
+    <thead><tr>
+      <th>Hóa đơn</th>
+      <th>Mã KH chuẩn</th>
+      <th>Mã KH nguồn</th>
+      <th>NVGH đã giao đơn</th>
+      <th>Còn nợ</th>
+      <th>Trạng thái</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td>${r.ma_don_nguon||""}</td>
+        <td>${r.ma_kh_chuan||""}</td>
+        <td>${r.ma_kh_nguon||r.ma_kh_dms||r.ma_kh_mbw||""}</td>
+        <td><b>${r.ma_nvgh||""}</b></td>
+        <td>${fmt(r.balance??r.con_no??r.so_con_no??r.debt_balance??0)}</td>
+        <td>${r.status||"CON_NO"}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  if(!rows.length){
+    body8.innerHTML='<div class="sub">Không có hóa đơn còn nợ phù hợp bộ lọc.</div>';
+  }
+}
+
+
+let ui09Rows=[];
+
+async function loadUI09(){
+  const x=await api("/api/qtgh-stable/ui09/debts-stable");
+  ui09Rows=x.rows||[];
+
+  ui09.innerHTML=`<h3>UI09 – Thu nợ nhân viên giao hàng</h3>
+    <div class="sub">Đây là khoản nợ của NVGH với Công ty, không phải công nợ khách hàng.</div>
+
+    <div id="edit9" class="section"></div>
+
+    <table>
+      <thead><tr>
+        <th>Mã NVGH</th>
+        <th>Tên nhân viên</th>
+        <th>Còn nợ Công ty</th>
+        <th>Trạng thái</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      ${ui09Rows.map(r=>`<tr>
+        <td><b>${r.ma_nvgh||r.ma_nv||""}</b></td>
+        <td>${r.ten_nv||""}</td>
+        <td>${fmt(r.balance??r.con_no??r.so_con_no??r.debt_balance??r.amount_due??0)}</td>
+        <td>${r.status||""}</td>
+        <td><button class="collect9" data-id="${r.id}">Thu nợ NV</button></td>
+      </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  document.querySelectorAll(".collect9").forEach(b=>{
+    b.onclick=()=>openCollect9(Number(b.dataset.id));
+  });
+}
+
+async function openCollect9(id){
+  const r=ui09Rows.find(x=>Number(x.id)===id);
+  if(!r)return;
+
+  const balance=Number(r.balance??r.con_no??r.so_con_no??r.debt_balance??r.amount_due??0);
+  const bx=await api("/api/qtgh-stable/banks");
+  const banks=Array.isArray(bx)?bx:(bx.rows||[]);
+
+  edit9.innerHTML=`<div class="card">
+    <h3>Thu nợ nhân viên ${r.ma_nvgh||r.ma_nv||""}${r.ten_nv?` - ${r.ten_nv}`:""}</h3>
+    <div class="sub">Còn nợ Công ty: <b>${fmt(balance)}</b></div>
+
+    <div class="row section">
+      <label>Tiền mặt<br><input id="cash9" value="0"></label>
+      <label>Chuyển khoản<br><input id="bank9" value="0"></label>
+      <label>Tài khoản nhận<br>
+        <select id="ba9">
+          <option value="">-- Chọn tài khoản --</option>
+          ${banks.map(b=>`<option value="${b.id??b.account_no}">${[b.bank_name,b.account_no,b.account_name].filter(Boolean).join(" - ")}</option>`).join("")}
+        </select>
+      </label>
+      <label>Mã giao dịch<br><input id="txn9"></label>
+    </div>
+
+    <div class="section">
+      <button id="save9" class="primary">Lưu thu nợ NV</button>
+      <button id="close9">Đóng</button>
+    </div>
+  </div>`;
+
+  close9.onclick=()=>edit9.innerHTML="";
+
+  save9.onclick=async()=>{
+    const cash=parseMoney(cash9.value);
+    const bank=parseMoney(bank9.value);
+
+    if(cash+bank<=0){
+      alert("Chưa nhập số tiền thu nợ");
+      return;
+    }
+
+    if(cash+bank>balance){
+      alert("Tổng số tiền thu vượt số nợ nhân viên");
+      return;
+    }
+
+    if(bank>0 && (!ba9.value || !txn9.value.trim())){
+      alert("Có chuyển khoản: bắt buộc chọn tài khoản nhận và mã giao dịch");
+      return;
+    }
+
+    const y=await api("/api/qtgh-stable/ui09/collect",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        employee_debt_id:id,
+        cash_amount:cash,
+        bank_amount:bank,
+        bank_account:ba9.value,
+        bank_txn_id:txn9.value.trim()
+      })
+    });
+
+    let msg=`Đã lưu thu nợ NV ${y.ma_nvgh}${y.ten_nv?` - ${y.ten_nv}`:""}.`;
+    if(y.cash_receipt_id){
+      msg+=` Đã tạo phiếu thu tiền mặt #${y.cash_receipt_id} sang UI05.`;
+    }
+    if(y.bank_amount>0){
+      msg+=` Chuyển khoản ${fmt(y.bank_amount)} đã giảm nợ ngay.`;
+    }
+
+    alert(msg);
+    edit9.innerHTML="";
+    await loadUI09();
+  };
+}
+
+
+let ui10Docs=[],ui10Adjustments=[],ui10Selected=null;
+
+async function loadUI10(){
+  ui10.innerHTML=`<h3>UI10 – Điều chỉnh</h3>
+    <div class="sub">
+      Không sửa trực tiếp chứng từ gốc. Điều chỉnh hàng theo từng SKU, không tự tính lại tiền.
+    </div>
+
+    <div class="row section">
+      <label>Loại chứng từ<br>
+        <select id="type10">
+          <option value="">-- Tất cả --</option>
+          <option value="CUSTOMER_DEBT">Công nợ khách hàng</option>
+          <option value="EMPLOYEE_DEBT">Nợ NVGH</option>
+          <option value="CASH_RECEIPT">Phiếu thu</option>
+          <option value="WAREHOUSE_RETURN">Phiếu trả kho</option>
+          <option value="SETTLEMENT_SESSION">Quyết toán đã khóa</option>
+        </select>
+      </label>
+
+      <label>NVGH<br><input id="nv10" placeholder="VGxxxx"></label>
+      <label>Tìm chứng từ<br><input id="q10" placeholder="Nhập mã đơn / số phiếu"></label>
+      <button id="search10" class="primary">Tìm kiếm</button>
+    </div>
+
+    <div id="edit10" class="section"></div>
+
+    <h3 class="section">Chứng từ nguồn</h3>
+    <div id="docs10"></div>
+
+    <h3 class="section">Lịch sử phiếu điều chỉnh</h3>
+    <div class="row section"><label>Tìm phiếu cũ<br><input id="legacyQuery10" placeholder="DC-... / mã chứng từ"></label><button id="legacySearch10">Tra cứu</button></div>
+    <div id="adjust10"></div>
+    <h3 class="section">Điều chỉnh số lượng nhận kho</h3>
+    <div class="row section"><label>Tìm phiếu hàng<br><input id="warehouseQuery10" placeholder="DCH-... / YCTK-... / SKU"></label><button id="warehouseSearch10">Tra cứu</button></div>
+    <div id="warehouseAdjust10"></div>
+    <h3 class="section">Điều chỉnh tiền</h3>
+    <div class="sub">Phiếu gốc và phiếu thu đã khóa được giữ nguyên. Chênh lệch có hiệu lực sau duyệt.</div>
+    <div class="row section"><label>Tìm đơn/phiên đã khóa<br><input id="moneyQuery10" placeholder="Nhập mã đơn / mã phiên / NVGH"></label><button id="moneySearch10">Tìm tiền</button></div>
+    <div id="moneyForm10"></div><div id="moneyDocs10"></div>
+    <h3 class="section">Phiếu điều chỉnh tiền</h3><div class="row section"><label>Tra cứu mã vụ việc / số phiếu / chứng từ<br><input id="moneyCaseSearch10" placeholder="VV-... / DCT-... / mã chứng từ"></label><button id="moneyCaseSearchButton10">Tra cứu</button></div><div id="moneyHistory10"></div>
+    <h3 class="section">Khoản nộp thừa đang treo</h3><div id="moneyCredit10"></div>`;
+
+  search10.onclick=searchUI10;
+  q10.onkeydown=e=>{if(e.key==='Enter')searchUI10()};
+  await searchUI10();
+  legacySearch10.onclick=loadAdjustments10;
+  legacyQuery10.onkeydown=e=>{if(e.key==='Enter')loadAdjustments10()};
+  await loadAdjustments10();
+  warehouseSearch10.onclick=loadWarehouseAdjustments10;
+  warehouseQuery10.onkeydown=e=>{if(e.key==='Enter')loadWarehouseAdjustments10()};
+  await loadWarehouseAdjustments10();
+  moneySearch10.onclick=loadMoney10;
+  moneyQuery10.onkeydown=e=>{if(e.key==='Enter')loadMoney10()};
+  moneyCaseSearchButton10.onclick=loadMoney10;
+  moneyCaseSearch10.onkeydown=e=>{if(e.key==='Enter')loadMoney10()};
+  await loadMoney10();
+}
+
+async function searchUI10(){
+  const term=q10.value.trim(), staff=nv10.value.trim();
+  if(!term&&!staff){
+    ui10Docs=[];
+    docs10.innerHTML='<div class="sub">Nhập mã chứng từ hoặc NVGH rồi bấm Tìm kiếm.</div>';
+    return;
+  }
+  const p=new URLSearchParams();
+  if(type10.value)p.set("doc_type",type10.value);
+  if(staff)p.set("ma_nvgh",staff);
+  if(term)p.set("q",term);
+
+  const x=await api("/api/qtgh-stable/ui10/documents?"+p.toString());
+  ui10Docs=x.rows||[];
+  renderDocs10();
+}
+
+function renderDocs10(){
+  docs10.innerHTML=`<table>
+    <thead><tr>
+      <th>Loại</th><th>Chứng từ</th><th>NVGH</th>
+      <th>Diễn giải</th><th>Giá trị hiện tại</th><th>Trạng thái</th><th></th>
+    </tr></thead>
+    <tbody>
+    ${ui10Docs.map((r,i)=>`<tr>
+      <td>${r.source_doc_type}</td>
+      <td><b>${r.source_ref}</b></td>
+      <td>${r.ma_nvgh||""}</td>
+      <td>${r.description||""}</td>
+      <td>${fmt(r.current_value)}</td>
+      <td>${r.status||""}</td>
+      <td><button class="newAdj10" data-i="${i}">Lập điều chỉnh</button></td>
+    </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  document.querySelectorAll(".newAdj10").forEach(b=>{
+    b.onclick=()=>openAdjustment10(Number(b.dataset.i));
+  });
+}
+
+async function openAdjustment10(i){
+  const r=ui10Docs[i];
+  ui10Selected=r;
+  if(r.source_doc_type==="WAREHOUSE_RETURN"){
+    await openWarehouseAdjustment10(r);
+    return;
+  }
+  edit10.innerHTML='<div class="card">Để điều chỉnh tiền, dùng mục Điều chỉnh tiền bên dưới. Phiếu cũ chỉ để đối chiếu.</div>';
+  return;
+
+  const supported=["CUSTOMER_DEBT","EMPLOYEE_DEBT"].includes(r.source_doc_type);
+
+  edit10.innerHTML=`<div class="card">
+    <h3>Lập phiếu điều chỉnh – ${r.source_ref}</h3>
+    <div class="sub">
+      Giá trị hiện tại: <b>${fmt(r.current_value)}</b>
+      · ${supported
+        ?"Sau duyệt sẽ cập nhật số dư."
+        :"Loại này chỉ ghi nhận lịch sử điều chỉnh, không sửa trực tiếp chứng từ gốc."}
+    </div>
+
+    <div class="row section">
+      <label>Loại điều chỉnh<br>
+        <select id="adjType10">
+          <option value="TANG">Điều chỉnh tăng</option>
+          <option value="GIAM">Điều chỉnh giảm</option>
+          <option value="SAI_THANH_TOAN">Sai hình thức thanh toán</option>
+          <option value="DIEU_CHINH_HANG_TRA">Điều chỉnh hàng trả</option>
+          <option value="KHAC">Khác</option>
+        </select>
+      </label>
+
+      <label>Giá trị điều chỉnh (+/-)<br>
+        <input id="delta10" value="0">
+      </label>
+
+      <label>Lý do<br>
+        <input id="reason10" placeholder="Bắt buộc">
+      </label>
+
+      <label>Ghi chú<br>
+        <input id="note10">
+      </label>
+    </div>
+
+    <div class="section">
+      <button id="saveAdj10" class="primary">Lưu phiếu điều chỉnh</button>
+      <button id="closeAdj10">Đóng</button>
+    </div>
+  </div>`;
+
+  closeAdj10.onclick=()=>edit10.innerHTML="";
+  saveAdj10.onclick=saveAdjustment10;
+}
+
+async function saveAdjustment10(){
+  const r=ui10Selected;
+  let delta=parseMoney(delta10.value);
+
+  if(adjType10.value==="GIAM" && delta>0)delta=-delta;
+  if(adjType10.value==="TANG" && delta<0)delta=Math.abs(delta);
+
+  if(delta===0){
+    alert("Giá trị điều chỉnh phải khác 0");
+    return;
+  }
+
+  if(!reason10.value.trim()){
+    alert("Bắt buộc nhập lý do");
+    return;
+  }
+
+  const y=await api("/api/qtgh-stable/ui10/adjustment-stable",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      source_doc_type:r.source_doc_type,
+      source_doc_id:r.source_doc_id,
+      source_ref:r.source_ref,
+      ma_nvgh:r.ma_nvgh||"",
+      adjustment_type:adjType10.value,
+      delta_amount:delta,
+      reason:reason10.value.trim(),
+      note:note10.value.trim()
+    })
+  });
+
+  alert(`Đã tạo phiếu ${y.adjustment_no}`);
+  edit10.innerHTML="";
+  await loadAdjustments10();
+}
+
+async function loadAdjustments10(){
+  const term=(document.getElementById('legacyQuery10')?.value||'').trim().toLocaleLowerCase('vi');
+  if(!term){
+    ui10Adjustments=[];
+    adjust10.innerHTML='<div class="sub">Nhập số phiếu cũ hoặc mã chứng từ rồi bấm Tra cứu.</div>';
+    return;
+  }
+  const x=await api("/api/qtgh-stable/ui10/adjustments-stable");
+  ui10Adjustments=(x.rows||[]).filter(r=>[r.adjustment_no,r.source_ref].some(v=>String(v??'').toLocaleLowerCase('vi').includes(term)));
+  renderAdjustments10();
+}
+
+function renderAdjustments10(){
+  adjust10.innerHTML=`<table>
+    <thead><tr>
+      <th>Số ĐC</th><th>Chứng từ gốc</th><th>Loại</th>
+      <th>Trước ĐC</th><th>Điều chỉnh</th><th>Sau ĐC</th>
+      <th>Lý do</th><th>Trạng thái</th><th>Tác động</th><th></th>
+    </tr></thead>
+    <tbody>
+    ${ui10Adjustments.map(r=>`<tr>
+      <td>${r.adjustment_no}</td>
+      <td>${r.source_ref||""}</td>
+      <td>${r.adjustment_type}</td>
+      <td>${fmt(r.before_value)}</td>
+      <td>${fmt(r.delta_amount)}</td>
+      <td>${fmt(r.after_value)}</td>
+      <td>${r.reason||""}</td>
+      <td>${r.status}</td>
+      <td>${r.effect_applied?"Đã cập nhật":"Ghi lịch sử"}</td>
+      <td>
+        <span class="sub">Phiếu cũ – chỉ đối chiếu</span>
+      </td>
+    </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  document.querySelectorAll(".submit10").forEach(b=>{
+    b.onclick=()=>submitAdjustment10(Number(b.dataset.id));
+  });
+
+  document.querySelectorAll(".approve10").forEach(b=>{
+    b.onclick=()=>approveAdjustment10(Number(b.dataset.id));
+  });
+}
+
+async function submitAdjustment10(id){
+  if(!confirm("Gửi phiếu điều chỉnh sang trạng thái Chờ duyệt?"))return;
+
+  await api(`/api/qtgh-stable/ui10/adjustment/${id}/submit`,{
+    method:"POST"
+  });
+
+  await loadAdjustments10();
+}
+
+async function approveAdjustment10(id){
+  const approver=prompt("Người duyệt","ADMIN");
+  if(approver===null)return;
+
+  if(!confirm("Duyệt phiếu điều chỉnh? Phiếu đã duyệt không sửa trực tiếp."))return;
+
+  await api(`/api/qtgh-stable/ui10/adjustment/${id}/approve-stable`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({approved_by:approver})
+  });
+
+  alert("Đã duyệt phiếu điều chỉnh.");
+  await searchUI10();
+  await loadAdjustments10();
+}
+
+async function openWarehouseAdjustment10(r){
+  const x=await api(`/api/qtgh-stable/ui10/warehouse/${r.source_doc_id}`);
+  if(x.request.status!=="DA_NHAN"){
+    edit10.innerHTML='<div class="danger">Phiếu chưa được thủ kho xác nhận. Nhập số thực nhận tại UI06.</div>';
+    return;
+  }
+  edit10.innerHTML=`<div class="card">
+    <h3>Điều chỉnh số lượng nhận kho – ${r.source_ref}</h3>
+    <div class="sub">Chỉ tác động số thực nhận của mã hàng được chọn; tiền không tự tính lại.</div>
+    <div class="row section">
+      <label>SKU<br><select id="whLine10">${x.lines.map(l=>`<option value="${l.id}" data-current="${l.effective_qty}" data-limit="${l.sl_phai_tra}">${l.ma_sku} – ${l.ten_sku||""} (hiệu lực ${l.effective_qty}, gốc ${l.sl_thuc_nhan})</option>`).join("")}</select></label>
+      <label>Tăng/giảm<br><select id="whDirection10"><option value="GIAM">Giảm</option><option value="TANG">Tăng</option></select></label>
+      <label>Số lượng<br><input id="whDelta10" type="number" min="0" step="any" placeholder="Ví dụ: 2"></label>
+      <label>Lý do<br><input id="whReason10" placeholder="Bắt buộc"></label>
+      <label>Ghi chú<br><input id="whNote10"></label>
+    </div>
+    <div id="whAfter10" class="section"></div>
+    <div class="section"><button id="whSave10" class="primary">Lưu phiếu điều chỉnh hàng</button> <button id="whClose10">Đóng</button></div>
+  </div>`;
+  const preview=()=>{
+    const opt=whLine10.selectedOptions[0],v=Number(whDelta10.value||0);
+    const after=Number(opt.dataset.current)+(whDirection10.value==="GIAM"?-v:v);
+    whAfter10.textContent=`Sau điều chỉnh: ${after} (giới hạn 0 đến ${opt.dataset.limit})`;
+  };
+  whLine10.onchange=whDelta10.oninput=whDirection10.onchange=preview;
+  preview();
+  whClose10.onclick=()=>edit10.innerHTML="";
+  whSave10.onclick=async()=>{
+    const v=Number(whDelta10.value),opt=whLine10.selectedOptions[0];
+    const delta=whDirection10.value==="GIAM"?-v:v;
+    const after=Number(opt.dataset.current)+delta;
+    if(!Number.isFinite(v)||v<=0||after<0||after>Number(opt.dataset.limit)||!whReason10.value.trim()){
+      alert("Kiểm tra số lượng sau điều chỉnh và lý do.");return;
+    }
+    const y=await api("/api/qtgh-stable/ui10/warehouse-adjustment",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({request_id:r.source_doc_id,line_id:Number(whLine10.value),delta_qty:delta,reason:whReason10.value.trim(),note:whNote10.value.trim()})
+    });
+    alert(`Đã lưu ${y.adjustment_no}; cần gửi duyệt.`);
+    edit10.innerHTML="";
+    await loadWarehouseAdjustments10();
+  };
+}
+
+async function loadWarehouseAdjustments10(){
+  const term=(document.getElementById('warehouseQuery10')?.value||'').trim().toLocaleLowerCase('vi');
+  if(!term){
+    warehouseAdjust10.innerHTML='<div class="sub">Nhập số phiếu điều chỉnh, phiếu nhận kho hoặc SKU rồi bấm Tra cứu.</div>';
+    return;
+  }
+  const x=await api("/api/qtgh-stable/ui10/warehouse-adjustments");
+  const rows=(x.rows||[]).filter(r=>[r.adjustment_no,r.request_no,r.ma_sku].some(v=>String(v??'').toLocaleLowerCase('vi').includes(term)));
+  warehouseAdjust10.innerHTML=`<div class="sub">Tìm thấy ${rows.length} phiếu.</div><table><thead><tr><th>Số phiếu</th><th>Phiếu nhận kho</th><th>SKU</th><th>Trước</th><th>Tăng/giảm</th><th>Sau</th><th>Lý do</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(r=>`<tr>
+    <td>${r.adjustment_no}</td><td>${r.request_no}</td><td>${r.ma_sku}</td>
+    <td>${r.before_qty}</td><td>${r.delta_qty}</td><td>${r.after_qty}</td><td>${r.reason}</td><td>${r.status}</td>
+    <td>${r.status==="NHAP"?`<button class="whSubmit10" data-id="${r.id}">Gửi duyệt</button>`:r.status==="CHO_DUYET"?`<button class="whApprove10 primary" data-id="${r.id}">Duyệt</button>`:""}</td>
+  </tr>`).join("")}</tbody></table>`;
+  document.querySelectorAll(".whSubmit10").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Gửi phiếu điều chỉnh hàng để duyệt?"))return;
+    await api(`/api/qtgh-stable/ui10/warehouse-adjustment/${b.dataset.id}/submit`,{method:"POST"});
+    await loadWarehouseAdjustments10();
+  });
+  document.querySelectorAll(".whApprove10").forEach(b=>b.onclick=async()=>{
+    const approved_by=prompt("Người duyệt","");
+    if(!approved_by?.trim()||!confirm("Duyệt và áp dụng thay đổi số lượng nhận kho?"))return;
+    await api(`/api/qtgh-stable/ui10/warehouse-adjustment/${b.dataset.id}/approve`,{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({approved_by:approved_by.trim()})
+    });
+    await searchUI10();
+    await loadWarehouseAdjustments10();
+  });
+}
+
+let moneyDocs10=[];
+function escMoney10(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function loadMoney10(){
+  const q=(document.getElementById('moneyQuery10')?.value||'').trim();
+  const caseQ=(document.getElementById('moneyCaseSearch10')?.value||'').trim();
+  const docs=q?await api('/api/qtgh-stable/ui10/money/documents?q='+encodeURIComponent(q)):{rows:[]};
+  const history=caseQ?await api('/api/qtgh-stable/ui10/money/adjustments?q='+encodeURIComponent(caseQ)):{rows:[],credits:[]};
+  moneyDocs10=docs.rows||[];
+  if(!q){document.getElementById('moneyDocs10').innerHTML='<div class="sub">Nhập mã đơn, mã phiên hoặc NVGH rồi bấm Tìm tiền.</div>'}
+  else {
+  document.getElementById('moneyDocs10').innerHTML=`<table><thead><tr><th>Loại</th><th>Chứng từ</th><th>NVGH</th><th>Số gốc</th><th>Số hiệu lực</th><th></th></tr></thead><tbody>${moneyDocs10.map((r,i)=>`<tr><td>${r.source_type==='ORDER'?'Đơn khách':'Phiên NVGH'}</td><td>${escMoney10(r.source_ref)}</td><td>${escMoney10(r.ma_nvgh)}</td><td>${fmt(r.base_amount)}</td><td>${fmt(r.current_amount)}</td><td><button class="moneyNew10" data-i="${i}">Lập phiếu tiền</button></td></tr>`).join('')}</tbody></table>`;
+  document.querySelectorAll('.moneyNew10').forEach(b=>b.onclick=()=>openMoney10(Number(b.dataset.i)));
+  }
+  if(!caseQ){
+    document.getElementById('moneyHistory10').innerHTML='<div class="sub">Nhập mã vụ việc, số phiếu hoặc mã chứng từ rồi bấm Tra cứu.</div>';
+    document.getElementById('moneyCredit10').innerHTML='';
+    return;
+  }
+  document.getElementById('moneyHistory10').innerHTML=`<table><thead><tr><th>Số phiếu</th><th>Loại</th><th>Chứng từ</th><th>Trước</th><th>Tăng/giảm</th><th>Sau</th><th>Mã vụ việc</th><th>Lý do</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${(history.rows||[]).map(r=>`<tr><td>${escMoney10(r.adjustment_no)}</td><td>${r.source_type==='ORDER'?'Đơn khách':'Phiên NVGH'}</td><td>${escMoney10(r.source_ref)}</td><td>${fmt(r.before_amount)}</td><td>${fmt(r.delta_amount)}</td><td>${fmt(r.after_amount)}</td><td>${escMoney10(r.case_ref)}</td><td>${escMoney10(r.reason)}</td><td>${escMoney10(r.status)}</td><td>${r.status==='NHAP'?`<button class="moneySubmit10" data-id="${r.id}">Gửi duyệt</button> <button class="moneyCancel10" data-id="${r.id}">Hủy nháp</button>`:r.status==='CHO_DUYET'?`<button class="moneyApprove10 primary" data-id="${r.id}">Duyệt</button>`:''}</td></tr>`).join('')}</tbody></table>`;
+  document.querySelectorAll('.moneySubmit10').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Gửi phiếu điều chỉnh tiền để duyệt?'))return;
+    try{await api(`/api/qtgh-stable/ui10/money/adjustments/${b.dataset.id}/submit`,{method:'POST'});await loadMoney10();}catch(e){alert(e.message);}
+  });
+  document.querySelectorAll('.moneyCancel10').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Hủy phiếu nháp này?'))return;
+    try{await api(`/api/qtgh-stable/ui10/money/adjustments/${b.dataset.id}/cancel`,{method:'POST'});await loadMoney10();}catch(e){alert(e.message);}
+  });
+  document.querySelectorAll('.moneyApprove10').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Duyệt phiếu tiền và ghi chênh lệch công nợ?'))return;
+    try{await api(`/api/qtgh-stable/ui10/money/adjustments/${b.dataset.id}/approve`,{method:'POST'});await loadMoney10();await searchUI10();}catch(e){alert(e.message);}
+  });
+  document.getElementById('moneyCredit10').innerHTML=(history.credits||[]).length?`<table><thead><tr><th>Phiếu</th><th>Chứng từ</th><th>Bên nộp thừa</th><th>Số tiền</th><th>Tình trạng</th><th>Thao tác</th></tr></thead><tbody>${history.credits.map(r=>`<tr><td>${escMoney10(r.adjustment_no)}</td><td>${escMoney10(r.source_ref)}</td><td>${r.party==='KH'?'Khách hàng':'NVGH'}</td><td>${fmt(r.amount)}</td><td>${r.party==='KH'?(r.refund_id?'Đã ghi hoàn · '+escMoney10(r.payment_ref):'Chưa ghi hoàn'):'Đối chiếu NVGH riêng'}</td><td>${r.party==='KH'&&!r.refund_id&&qtghRole==='KE_TOAN_TRUONG'?`<button class="moneyRefund10" data-id="${r.adjustment_id}" data-amount="${r.amount}">Ghi nhận đã hoàn</button>`:''}</td></tr>`).join('')}</tbody></table>`:'Chưa có khoản nộp thừa.';
+  document.querySelectorAll('.moneyRefund10').forEach(b=>b.onclick=async()=>{
+    const method=prompt('Cách hoàn: CASH hoặc BANK','BANK')?.trim().toUpperCase();
+    if(!['CASH','BANK'].includes(method))return;
+    const payment_ref=prompt('Số phiếu chi hoặc mã giao dịch ngân hàng','')?.trim();
+    const paid_by=prompt('Người thực hiện trả tiền','')?.trim();
+    const paid_at=prompt('Ngày đã trả (YYYY-MM-DD)',todayLocal11B())?.trim();
+    if(!payment_ref||!paid_by||!/^\d{4}-\d{2}-\d{2}$/.test(paid_at)){alert('Thiếu chứng từ, người trả hoặc ngày trả.');return;}
+    if(!confirm(`Xác nhận đã thực trả ${fmt(b.dataset.amount)} đồng cho khách? Chỉ ghi nhận sau khi có chứng từ chi.`))return;
+    try{
+      await api(`/api/qtgh-stable/ui10/money/adjustments/${b.dataset.id}/record-customer-refund`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({method,payment_ref,paid_by,paid_at})
+      });
+      await loadMoney10();
+    }catch(e){alert(e.message)}
+  });
+}
+function openMoney10(i){
+  const r=moneyDocs10[i];
+  document.getElementById('moneyForm10').innerHTML=`<div class="card"><h3>Điều chỉnh tiền – ${escMoney10(r.source_ref)}</h3><div>Số tiền hiệu lực: <b>${fmt(r.current_amount)}</b>. Nhập số có dấu: tăng dùng số dương, giảm dùng số âm. Phiếu đơn sẽ ghi riêng chênh lệch của khách và NVGH; số tiền/phiếu thu gốc giữ nguyên.</div>${r.source_type==='SESSION'?'<div class="sub">Số hiện tại của phiên đã bao gồm các điều chỉnh tiền đơn được duyệt. Chỉ ghi thêm phần chênh lệch còn thiếu để tránh tính hai lần.</div>':''}<div class="row section"><label>Tăng/giảm (VND)<br><input id="moneyDelta10" type="number" step="1"></label><label>Mã vụ việc<br><span>Hệ thống tự sinh khi lưu phiếu</span></label><label>Lý do<br><input id="moneyReason10"></label><label>Ghi chú<br><input id="moneyNote10"></label></div><div id="moneyPreview10"></div><div class="section"><button id="moneySave10" class="primary">Lưu phiếu tiền</button> <button id="moneyClose10">Đóng</button></div></div>`;
+  moneyDelta10.oninput=()=>moneyPreview10.textContent=`Sau điều chỉnh: ${fmt(r.current_amount+Number(moneyDelta10.value||0))}`;
+  moneyClose10.onclick=()=>moneyForm10.innerHTML='';
+  moneySave10.onclick=async()=>{
+    const delta=Number(moneyDelta10.value);
+    if(!Number.isSafeInteger(delta)||!delta||r.current_amount+delta<0||!moneyReason10.value.trim()){alert('Kiểm tra số tiền nguyên VND và lý do.');return;}
+    try{
+      const a=await api('/api/qtgh-stable/ui10/money/adjustments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_type:r.source_type,source_id:r.source_id,delta_amount:delta,reason:moneyReason10.value.trim(),note:moneyNote10.value.trim()})});
+      moneyForm10.innerHTML='';await loadMoney10();alert(`Đã lưu ${a.adjustment_no}. Mã vụ việc: ${a.case_ref}. Tiếp tục Gửi duyệt.`);
+    }catch(e){alert(e.message);}
+  };
+}
+
+const DENOMS11B=[500000,200000,100000,50000,20000,10000,5000,2000,1000,500,200,100];
+let ui11SummaryB=null,ui11SavedB=null,ui11FilterB="DONE";
+
+function todayLocal11B(){
+  const d=new Date();
+  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+}
+function readDate11B(){
+  return $("date11b")?.value||todayLocal11B();
+}
+
+function isWait11B(r){
+  return String(r.status||"").trim().toUpperCase()==="CHO_THU";
+}
+
+function isDone11B(r){
+  return ["DA_THU_DU","THU_THIEU","DA_THU_THIEU"].includes(
+    String(r.status||"").trim().toUpperCase()
+  );
+}
+
+function vnWords11B(n){
+  n=Math.round(Number(n||0));
+  if(n===0)return "Không đồng";
+  if(n<0)return "Âm "+vnWords11B(-n).replace(/ đồng$/i,"")+" đồng";
+
+  const d=["không","một","hai","ba","bốn","năm","sáu","bảy","tám","chín"];
+  const u=[""," nghìn"," triệu"," tỷ"," nghìn tỷ"," triệu tỷ"];
+
+  function three(v,full){
+    const a=Math.floor(v/100),b=Math.floor((v%100)/10),c=v%10;
+    let s="";
+    if(a>0||full){
+      s+=d[a]+" trăm";
+      if(b===0&&c>0)s+=" lẻ";
+    }
+    if(b>1){
+      s+=" "+d[b]+" mươi";
+      if(c===1)s+=" mốt";
+      else if(c===5)s+=" lăm";
+      else if(c>0)s+=" "+d[c];
+    }else if(b===1){
+      s+=" mười";
+      if(c===5)s+=" lăm";
+      else if(c>0)s+=" "+d[c];
+    }else if(c>0){
+      s+=" "+d[c];
+    }
+    return s.trim();
+  }
+
+  let x=n,groups=[];
+  while(x>0){groups.push(x%1000);x=Math.floor(x/1000)}
+  let parts=[];
+  for(let i=groups.length-1;i>=0;i--){
+    if(groups[i]===0)continue;
+    parts.push(three(groups[i],i<groups.length-1&&groups[i]<100)+u[i]);
+  }
+  const s=parts.join(" ").replace(/\s+/g," ").trim();
+  return s.charAt(0).toUpperCase()+s.slice(1)+" đồng";
+}
+
+
+async function loadUI11(){
+  ui11.innerHTML=`<h3>UI11 – Kiểm kê quỹ</h3>
+    <div class="sub">
+      Phiếu Đã Thu lọc theo ngày thực thu; Phiếu Chờ Thu lọc theo ngày lập phiếu.
+    </div>
+
+    <div class="row section">
+      <label>Ngày kiểm kê<br>
+        <input type="date" id="date11b" value="${todayLocal11B()}">
+      </label>
+      <button id="load11b" class="primary">Xem quỹ theo ngày</button>
+    </div>
+
+    <div id="sum11b" class="section"></div>
+    <div id="receiptFilters11b" class="section"></div>
+    <div id="receipts11b" class="section"></div>
+    <div id="count11b" class="section"></div>`;
+
+  load11b.onclick=refresh11B;
+  date11b.onchange=refresh11B;
+
+  await refresh11B();
+}
+
+async function refresh11B(){
+  const day=readDate11B();
+
+  ui11SummaryB=await api(
+    "/api/qtgh-stable/ui11/day-summary?date="+encodeURIComponent(day)
+  );
+
+  const sx=await api(
+    "/api/qtgh-stable/ui11/count?date="+encodeURIComponent(day)
+  );
+  ui11SavedB=sx.count||null;
+
+  renderSummary11B();
+  renderReceipts11B();
+  renderCount11B();
+}
+
+function waitRows11B(){
+  return (ui11SummaryB?.receipts_created||[]).filter(isWait11B);
+}
+
+function doneRows11B(){
+  return (ui11SummaryB?.receipts_received||[]).filter(isDone11B);
+}
+
+function allRows11B(){
+  const map=new Map();
+  waitRows11B().forEach(r=>map.set("W"+r.id,r));
+  doneRows11B().forEach(r=>map.set("D"+r.id,r));
+  return [...map.values()];
+}
+
+function renderSummary11B(){
+  const wait=waitRows11B();
+  const done=doneRows11B();
+  const received=done.reduce((s,r)=>s+Number(r.actual_amount||0),0);
+
+  sum11b.innerHTML=`<div class="card">
+    <b>${readDate11B()}</b>
+    · Phiếu Chờ Thu phát sinh: <b>${wait.length}</b>
+    · Phiếu Đã Thu trong ngày: <b>${done.length}</b>
+    · Tiền thực thu: <b>${fmt(received)}</b>
+  </div>`;
+}
+
+function setFilter11B(mode){
+  ui11FilterB=mode;
+  renderReceipts11B();
+}
+
+function renderReceipts11B(){
+  const wait=waitRows11B();
+  const done=doneRows11B();
+  const all=allRows11B();
+
+  const rows=ui11FilterB==="WAIT"?wait:ui11FilterB==="DONE"?done:all;
+
+  receiptFilters11b.innerHTML=`<div class="row">
+    <button id="wait11b">Phiếu Chờ Thu (${wait.length})</button>
+    <button id="done11b">Phiếu Đã Thu (${done.length})</button>
+    <button id="all11b">Tất cả (${all.length})</button>
+  </div>`;
+
+  wait11b.onclick=()=>setFilter11B("WAIT");
+  done11b.onclick=()=>setFilter11B("DONE");
+  all11b.onclick=()=>setFilter11B("ALL");
+
+  $(ui11FilterB==="WAIT"?"wait11b":ui11FilterB==="DONE"?"done11b":"all11b")
+    ?.classList.add("primary");
+
+  receipts11b.innerHTML=`<div><b>${rows.length} phiếu hiển thị</b></div>
+    <table>
+      <thead><tr>
+        <th>ID</th><th>Loại phiếu</th><th>NVGH</th>
+        <th>Phải thu</th><th>Thực thu</th>
+        <th>Trạng thái</th><th>Ngày/giờ</th>
+      </tr></thead>
+      <tbody>
+      ${rows.map(r=>{
+        const dt=isDone11B(r)
+          ?(r.received_at||r.updated_at||"")
+          :(r.created_at||r.ngay_phieu||"");
+        return `<tr>
+          <td>${r.id}</td>
+          <td>${r.receipt_kind||r.source_type||""}</td>
+          <td>${r.ma_nvgh||""}</td>
+          <td>${fmt(r.expected_amount)}</td>
+          <td>${fmt(r.actual_amount)}</td>
+          <td>${r.status||""}</td>
+          <td>${dt}</td>
+        </tr>`;
+      }).join("")}
+      </tbody>
+    </table>`;
+
+  if(!rows.length){
+    receipts11b.innerHTML+=`<div class="sub section">Không có phiếu phù hợp.</div>`;
+  }
+}
+
+function savedNote11B(denom){
+  const r=(ui11SavedB?.lines||[]).find(x=>Number(x.denomination)===denom);
+  return r?Number(r.note_count||0):0;
+}
+
+function savedLoose11B(){
+  return Number(ui11SavedB?.loose_amount||0);
+}
+
+function calc11B(){
+  let total=0;
+  DENOMS11B.forEach(d=>{
+    const inp=document.querySelector(`.note11b[data-denom="${d}"]`);
+    const cnt=inp?Math.max(0,Number(inp.value||0)):savedNote11B(d);
+    const amt=d*cnt;
+    total+=amt;
+    const td=document.querySelector(`.amt11b[data-denom="${d}"]`);
+    if(td)td.textContent=fmt(amt);
+  });
+
+  const loose=Math.max(0,Math.min(99,Number(document.getElementById("loose11b")?.value??savedLoose11B()??0)));
+  total+=loose;
+  const received=doneRows11B().reduce((s,r)=>s+Number(r.actual_amount||0),0);
+  const variance=total-received;
+
+  if(document.getElementById("looseAmt11b")) looseAmt11b.textContent=fmt(loose);
+  counted11b.textContent=fmt(total);
+  words11b.textContent=vnWords11B(total);
+  variance11b.textContent=fmt(variance);
+  variance11b.className=variance===0?"ok":variance<0?"danger":"";
+}
+
+function renderCount11B(){
+  const locked=ui11SavedB?.status==="LOCKED";
+  const received=doneRows11B().reduce((s,r)=>s+Number(r.actual_amount||0),0);
+
+  count11b.innerHTML=`<h3>Bảng kiểm kê tiền mặt</h3>
+    <table>
+      <thead><tr><th>Mệnh giá</th><th>Số tờ</th><th>Thành tiền</th></tr></thead>
+      <tbody>
+      ${DENOMS11B.map(d=>`<tr>
+        <td>${fmt(d)}</td>
+        <td>${locked
+          ?`<b>${savedNote11B(d)}</b>`
+          :`<input class="note11b num" data-denom="${d}" type="number" min="0" step="1" value="${savedNote11B(d)}">`}
+        </td>
+        <td class="amt11b" data-denom="${d}">${fmt(d*savedNote11B(d))}</td>
+      </tr>`).join("")}
+      <tr>
+        <td><b>Tiền lẻ khác (&lt;100đ)</b></td>
+        <td>${locked
+          ?`<b>${fmt(savedLoose11B())}</b>`
+          :`<input id="loose11b" class="num" type="number" min="0" max="99" step="1" value="${savedLoose11B()}">`}
+        </td>
+        <td id="looseAmt11b">${fmt(savedLoose11B())}</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="card section">
+      <div>Tiền thực thu trong ngày: <b>${fmt(received)}</b></div>
+      <div>Tổng tiền kiểm đếm: <b id="counted11b">0</b></div>
+      <div>Bằng chữ: <b id="words11b"></b></div>
+      <div>Thừa / Thiếu so với tiền thực thu: <b id="variance11b"></b></div>
+      <div>Trạng thái: <b>${ui11SavedB?.status||"CHƯA LƯU"}</b></div>
+    </div>
+
+    <div class="section">
+      ${locked?"":`<button id="save11b">Lưu bảng kiểm kê</button>
+        <button id="lock11b" class="primary">Chốt kiểm kê</button>`}
+      <button id="print11b">In phiếu kiểm kê</button>
+    </div>`;
+
+  document.querySelectorAll(".note11b").forEach(i=>i.oninput=calc11B);
+  if(document.getElementById("loose11b")) loose11b.oninput=calc11B;
+
+  if(!locked){
+    save11b.onclick=saveCount11B;
+    lock11b.onclick=lockCount11B;
+  }
+  print11b.onclick=printCount11B;
+
+  calc11B();
+}
+
+function payload11B(){
+  const total=DENOMS11B.reduce((s,d)=>{
+    const i=document.querySelector(`.note11b[data-denom="${d}"]`);
+    return s+d*Math.max(0,Number(i?.value||0));
+  },0);
+
+  const loose=Math.max(0,Math.min(99,Number(document.getElementById("loose11b")?.value??savedLoose11B()??0)));
+  const grand=total+loose;
+
+  return {
+    date:readDate11B(),
+    loose_amount:loose,
+    amount_words:vnWords11B(grand),
+    lines:DENOMS11B.map(d=>({
+      denomination:d,
+      note_count:Math.max(0,Number(
+        document.querySelector(`.note11b[data-denom="${d}"]`)?.value||0
+      ))
+    }))
+  };
+}
+
+async function saveCount11B(){
+  ui11SavedB=await api("/api/qtgh-stable/ui11/count/save",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(payload11B())
+  });
+  alert("Đã lưu bảng kiểm kê.");
+  renderCount11B();
+}
+
+async function lockCount11B(){
+  if(!confirm("Chốt kiểm kê? Sau khi chốt bảng sẽ bị khóa."))return;
+  await saveCount11B();
+
+  ui11SavedB=await api("/api/qtgh-stable/ui11/count/lock",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({date:readDate11B()})
+  });
+  alert("Đã chốt kiểm kê.");
+  renderCount11B();
+}
+
+function printCount11B(){
+  if(!ui11SavedB){
+    alert("Hãy lưu bảng kiểm kê trước khi in.");
+    return;
+  }
+
+  const lines=(ui11SavedB.lines||[]).map(l=>({
+    denomination:Number(l.denomination||0),
+    note_count:Number(l.note_count||0),
+    amount:Number(l.amount||0)
+  }));
+
+  const loose=Number(ui11SavedB?.loose_amount||0);
+  const counted=lines.reduce((s,l)=>s+l.amount,0)+loose;
+  const received=Number(ui11SavedB.received_total||0);
+  const variance=counted-received;
+  const label=variance===0?"Khớp quỹ":variance>0?"Thừa quỹ":"Thiếu quỹ";
+
+  const w=window.open("","_blank","width=1000,height=1050");
+  if(!w){alert("Hãy cho phép pop-up để in.");return;}
+
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8">
+  <title>Kiểm kê quỹ ${readDate11B()}</title>
+  <style>
+  body{font-family:Arial;padding:15mm;font-size:13px}h1,h2{text-align:center}
+  table{width:100%;border-collapse:collapse;margin-top:14px}
+  th,td{border:1px solid #999;padding:7px}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;margin-top:45px}
+  @media print{button{display:none}}
+  </style><style id="ba-v11-hide-other-discount">
+#other { display:none !important; }
+label:has(#other) { display:none !important; }
+</style>
+</head><body>
+  <button onclick="window.print()">In phiếu</button>
+  <h2>CÔNG TY CP VĨNH GIANG</h2>
+  <h1>BIÊN BẢN KIỂM KÊ QUỸ TIỀN MẶT</h1>
+  <p style="text-align:center">Ngày ${readDate11B()}</p>
+  <p><b>Tiền thực thu:</b> ${fmt(received)} đồng</p>
+  <table><thead><tr><th>Mệnh giá</th><th>Số tờ</th><th>Thành tiền</th></tr></thead>
+  <tbody>${lines.filter(l=>l.note_count>0).map(l=>`<tr>
+    <td>${fmt(l.denomination)}</td><td>${fmt(l.note_count)}</td><td>${fmt(l.amount)}</td>
+  </tr>`).join("")}
+  ${loose>0?`<tr><td><b>Tiền lẻ khác (&lt;100đ)</b></td><td></td><td><b>${fmt(loose)}</b></td></tr>`:""}
+  </tbody></table>
+  <p><b>Tổng kiểm đếm:</b> ${fmt(counted)} đồng</p>
+  <p><b>Bằng chữ:</b> ${vnWords11B(counted)}</p>
+  <p><b>Kết quả:</b> ${label}</p>
+  <p><b>Chênh lệch:</b> ${fmt(variance)} đồng</p>
+  <div class="sign"><div><b>Người kiểm kê</b></div><div><b>Thủ quỹ</b></div><div><b>Kế toán</b></div></div>
+  </body></html>`);
+
+  w.document.close();
+  w.focus();
+}
+
+
+async function loadKQNVKDStable(){
+  const host=document.getElementById("kqNvkdStableHost");
+  if(!host)return;
+
+  host.innerHTML=`<h3>Kết quả NV kinh doanh</h3>
+    <div class="sub">
+      Doanh số giao thành công = SL hàng bán thực giao × đơn giá chưa VAT.
+      Giao đủ và giao một phần được tính; vỡ 100% không tính đơn thành công.
+    </div>
+    <div class="row section">
+      <label>Tháng<br><input id="kqMonth" type="month"></label>
+      <label>NVKD<br><select id="kqEmp"><option value="">-- Tất cả --</option></select></label>
+      <label>Vùng KD<br><select id="kqRegion"><option value="">-- Tất cả --</option></select></label>
+      <label>BU<br><select id="kqBu"><option value="">-- Tất cả --</option></select></label>
+      <button id="kqRun" class="primary">Xem kết quả</button>
+    </div>
+    <div id="kqCards" class="section"></div>
+    <div id="kqTable"></div>`;
+
+  const now=new Date();
+  kqMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  const meta=await api("/api/qtgh-stable/kq-nvkd/meta");
+  (meta.employees||[]).forEach(x=>{
+    kqEmp.insertAdjacentHTML("beforeend",`<option value="${x.ma_nv}">${x.ma_nv} - ${x.ten_nv||""}</option>`);
+  });
+
+  [...new Set((meta.employees||[]).map(x=>x.ma_vung_kd).filter(Boolean))].sort().forEach(v=>{
+    kqRegion.insertAdjacentHTML("beforeend",`<option value="${v}">${v}</option>`);
+  });
+
+  (meta.bus||[]).forEach(v=>kqBu.insertAdjacentHTML("beforeend",`<option value="${v}">${v}</option>`));
+
+  kqRun.onclick=runKQNVKDStable;
+  await runKQNVKDStable();
+}
+
+async function runKQNVKDStable(){
+  const p=new URLSearchParams({month:kqMonth.value});
+  if(kqEmp.value)p.set("ma_nv",kqEmp.value);
+  if(kqRegion.value)p.set("ma_vung_kd",kqRegion.value);
+  if(kqBu.value)p.set("bu",kqBu.value);
+
+  const x=await api("/api/qtgh-stable/kq-nvkd/report?"+p.toString());
+  const s=x.summary||{};
+  kqCards.innerHTML=`<div class="card">
+    Doanh số đặt: <b>${fmt(s.doanh_so_dat)}</b>
+    · Doanh số giao TC: <b>${fmt(s.doanh_so_giao)}</b>
+    · Đơn đặt: <b>${s.so_don_dat||0}</b>
+    · Đơn giao TC: <b>${s.so_don_giao_tc||0}</b>
+    · Giao đủ: <b>${s.don_giao_du||0}</b>
+    · Giao một phần: <b>${s.don_giao_mot_phan||0}</b>
+    · Vỡ 100%: <b>${s.don_vo_100||0}</b>
+  </div>`;
+
+  kqTable.innerHTML=`<table>
+    <thead><tr>
+      <th>MA_NV</th><th>Tên NV</th><th>Vùng KD</th>
+      <th>DS đặt</th><th>DS giao TC</th>
+      <th>Đơn đặt</th><th>Đơn giao TC</th>
+      <th>Giao đủ</th><th>Giao 1 phần</th><th>Vỡ 100%</th>
+      <th>KH có giao TC</th><th>Tổng KH phụ trách</th><th>ECO</th><th>BU</th>
+    </tr></thead>
+    <tbody>
+    ${(x.rows||[]).map(r=>`<tr>
+      <td><b>${r.ma_nv}</b></td><td>${r.ten_nv||""}</td><td>${r.ma_vung_kd||""}</td>
+      <td>${fmt(r.doanh_so_dat)}</td><td><b>${fmt(r.doanh_so_giao)}</b></td>
+      <td>${r.so_don_dat}</td><td>${r.so_don_giao_tc}</td>
+      <td>${r.don_giao_du}</td><td>${r.don_giao_mot_phan}</td><td>${r.don_vo_100}</td>
+      <td>${r.kh_co_don_giao_tc}</td><td>${r.tong_kh_phu_trach}</td><td><b>${r.eco}%</b></td>
+      <td>${(r.by_bu||[]).map(b=>`${b.bu}: ${fmt(b.doanh_so_giao)}`).join("<br>")}</td>
+    </tr>`).join("")}
+    </tbody>
+  </table>`;
+
+  if(!(x.rows||[]).length){
+    kqTable.innerHTML+=`<div class="sub section">Không có dữ liệu phù hợp bộ lọc.</div>`;
+  }
+}
+
+
+const loaders={ui04:loadUI04,ui05:loadUI05,ui06:loadUI06,ui07:loadUI07,ui08:loadUI08,ui09:loadUI09,ui10:loadUI10,ui11:loadUI11};
+bootstrapQtghAccess().catch(e=>document.querySelector('.wrap').innerHTML='<div class="card danger">'+e.message+'</div>');
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded",()=>{
+  if(document.getElementById("btnKQNVKDStable")) return;
+  const nav=document.querySelector(".nav")||document.querySelector("nav")||document.body;
+  const b=document.createElement("button");
+  b.id="btnKQNVKDStable";
+  b.textContent="KQ NV kinh doanh";
+  b.style.margin="4px";
+  b.onclick=async()=>{
+    document.querySelectorAll("main > section, .page, .screen").forEach(x=>x.style.display="none");
+    let box=document.getElementById("kqNvkdStablePage");
+    if(!box){
+      box=document.createElement("section");
+      box.id="kqNvkdStablePage";
+      box.innerHTML='<div id="kqNvkdStableHost"></div>';
+      (document.querySelector("main")||document.body).appendChild(box);
+    }
+    box.style.display="";
+    await loadKQNVKDStable();
+  };
+  nav.appendChild(b);
+});
+</script>
+
+<script>
+// ===== QTGH UI10 FIX + MONEY HELPER V1 =====
+(function(){
+  // ----------------------------------------------------------------
+  // 1) Fix missing readDate11B helper.
+  // Safe generic formatter: returns YYYY-MM-DD when possible.
+  // ----------------------------------------------------------------
+  if(typeof window.readDate11B !== "function"){
+    window.readDate11B = function(v){
+      if(v===null || v===undefined || v==="") return "";
+      const s=String(v).trim();
+
+      // Already ISO/date-like
+      const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if(iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+      // dd/mm/yyyy or dd-mm-yyyy
+      const vi=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if(vi){
+        return `${vi[3]}-${String(vi[2]).padStart(2,"0")}-${String(vi[1]).padStart(2,"0")}`;
+      }
+
+      const d=new Date(s);
+      if(!Number.isNaN(d.getTime())){
+        const y=d.getFullYear();
+        const m=String(d.getMonth()+1).padStart(2,"0");
+        const day=String(d.getDate()).padStart(2,"0");
+        return `${y}-${m}-${day}`;
+      }
+      return s;
+    };
+  }
+
+  // ----------------------------------------------------------------
+  // 2) Money input helper.
+  // Does NOT alter the real input value, so existing calculations
+  // continue to receive plain numbers.
+  // ----------------------------------------------------------------
+  const MONEY_WORDS = [
+    "tiền","tien","cash","bank","amount","thu","nộp","nop",
+    "chuyển khoản","chuyen khoan","phải thu","phai thu",
+    "thực thu","thuc thu","giá trị","gia tri",
+    "công nợ","cong no","điều chỉnh","dieu chinh",
+    "thanh toán","thanh toan","ck/km","ckkm"
+  ];
+
+  function digitsOnly(v){
+    let s=String(v??"").trim();
+    // Preserve minus sign if user enters negative adjustment.
+    const neg=s.startsWith("-");
+    s=s.replace(/[^\d]/g,"");
+    if(!s) return "";
+    return (neg?"-":"")+s;
+  }
+
+  function formatMoney(v){
+    const raw=digitsOnly(v);
+    if(!raw || raw==="-" ) return "";
+    const neg=raw.startsWith("-");
+    const n=neg?raw.slice(1):raw;
+    const out=n.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+    return (neg?"-":"")+out;
+  }
+
+  function labelText(input){
+    const parts=[];
+    if(input.id) parts.push(input.id);
+    if(input.name) parts.push(input.name);
+    if(input.placeholder) parts.push(input.placeholder);
+
+    const label=input.closest("label");
+    if(label) parts.push(label.textContent||"");
+
+    const parent=input.parentElement;
+    if(parent) parts.push(parent.textContent||"");
+
+    return parts.join(" ").toLowerCase();
+  }
+
+  function looksLikeMoneyInput(input){
+    if(!(input instanceof HTMLInputElement)) return false;
+    if(["checkbox","radio","date","month","file","button","submit"].includes((input.type||"").toLowerCase())) return false;
+
+    const text=labelText(input);
+    if(MONEY_WORDS.some(w=>text.includes(w))) return true;
+
+    // Strong id/name keywords
+    const key=((input.id||"")+" "+(input.name||"")).toLowerCase();
+    return /(cash|bank|amount|money|tien|thu|nop|debt|adjust|payment|ckkm)/.test(key);
+  }
+
+  function ensureMoneyPreview(input){
+    if(input.dataset.moneyHelperV1==="1") return;
+    if(!looksLikeMoneyInput(input)) return;
+
+    input.dataset.moneyHelperV1="1";
+
+    const hint=document.createElement("div");
+    hint.className="money-helper-v1";
+    hint.style.cssText=[
+      "font-size:12px",
+      "color:#475467",
+      "margin-top:3px",
+      "min-height:14px",
+      "white-space:nowrap"
+    ].join(";");
+    input.insertAdjacentElement("afterend",hint);
+
+    function refresh(){
+      const f=formatMoney(input.value);
+      hint.textContent=f ? `≈ ${f}` : "";
+    }
+
+    input.addEventListener("input",refresh);
+    input.addEventListener("change",refresh);
+    input.addEventListener("blur",refresh);
+    refresh();
+  }
+
+  function scan(){
+    document.querySelectorAll("input").forEach(ensureMoneyPreview);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(scan,100));
+  }else{
+    setTimeout(scan,100);
+  }
+
+  // Dynamic screens/forms in UI04-UI11
+  const obs=new MutationObserver(()=>scan());
+  obs.observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+<script>
+// ===== QTGH PRINT + UI11 DATE FIX V2 =====
+(function(){
+  let metaV2={staff:{},receipt_numbers:{}};
+
+  async function loadMetaV2(){
+    try{
+      const r=await fetch("/api/qtgh-stable/print/meta-v2");
+      if(r.ok) metaV2=await r.json();
+    }catch(e){}
+  }
+
+  function todayLocalV2(){
+    const d=new Date();
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,"0");
+    const day=String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+
+  const nativeFetchV2=window.fetch.bind(window);
+  window.fetch=function(input,init){
+    let url=String(input||"");
+    if(
+      url.includes("/api/qtgh-stable/ui11/day-summary?date=") ||
+      url.includes("/api/qtgh-stable/ui11/count?date=")
+    ){
+      url=url.replace(/([?&]date=)(?=&|$)/,`$1${todayLocalV2()}`);
+      input=url;
+    }
+    return nativeFetchV2(input,init);
+  };
+
+  function staffNameV2(code){
+    return (metaV2.staff||{})[String(code||"").trim()] || "";
+  }
+
+  function receiptNoV2(id){
+    const key=String(id||"").replace(/^#/,"").trim();
+    return (metaV2.receipt_numbers||{})[key] || "";
+  }
+
+  function enhancePrintHtmlV2(html){
+    if(typeof html!=="string" || !html) return html;
+    let out=html;
+
+    out=out.replace(
+      /(<td[^>]*>\s*Số phiếu\s*<\/td>\s*<td[^>]*>)#?(\d+)(<\/td>)/gi,
+      (m,a,id,b)=>{
+        const no=receiptNoV2(id);
+        return a+(no||("#"+id))+b;
+      }
+    );
+
+    out=out.replace(
+      /(<td[^>]*>\s*)NVGH(\s*<\/td>\s*<td[^>]*>)\s*(VG\d+)(\s*<\/td>)/gi,
+      (m,a,b,code,c)=>{
+        const name=staffNameV2(code);
+        return `${a}Người nộp tiền${b}Mã NV: ${code}${name?" - "+name:""}${c}`;
+      }
+    );
+
+    out=out.replace(
+      /(<b[^>]*>\s*)NVGH(\s*:\s*<\/b>\s*)(VG\d+)/gi,
+      (m,a,b,code)=>{
+        const name=staffNameV2(code);
+        return `${a}Mã nhân viên${b}${code}${name?" - "+name:""}`;
+      }
+    );
+
+    out=out.replace(
+      /(NVGH\s*:\s*)(VG\d+)/gi,
+      (m,label,code)=>{
+        const name=staffNameV2(code);
+        return `Mã nhân viên: ${code}${name?" - "+name:""}`;
+      }
+    );
+
+    out=out.replace(
+      /(<[^>]+>\s*)NVGH(\s*<\/[^>]+>\s*(?:<[^>]+>\s*)?\(Ký,\s*ghi rõ họ tên\))/gi,
+      `$1Người trả kho$2`
+    );
+
+    return out;
+  }
+
+  const nativeOpenV2=window.open.bind(window);
+  window.open=function(...args){
+    const w=nativeOpenV2(...args);
+    if(!w) return w;
+    try{
+      const nativeWrite=w.document.write.bind(w.document);
+      w.document.write=function(...parts){
+        return nativeWrite(...parts.map(enhancePrintHtmlV2));
+      };
+      if(w.document.writeln){
+        const nativeWriteln=w.document.writeln.bind(w.document);
+        w.document.writeln=function(...parts){
+          return nativeWriteln(...parts.map(enhancePrintHtmlV2));
+        };
+      }
+    }catch(e){}
+    return w;
+  };
+
+  function ensureUi11DateV2(){
+    document.querySelectorAll('input[type="date"]').forEach(inp=>{
+      const area=(inp.closest("section,div")?.textContent||"").toLowerCase();
+      if(area.includes("kiểm kê") && !inp.value){
+        inp.value=todayLocalV2();
+        inp.dispatchEvent(new Event("change",{bubbles:true}));
+      }
+    });
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>{
+      loadMetaV2();
+      setTimeout(ensureUi11DateV2,150);
+    });
+  }else{
+    loadMetaV2();
+    setTimeout(ensureUi11DateV2,150);
+  }
+})();
+</script>
+
+<script src="/ui/qtgh_reduction_report.js?v=20261002_3"></script>
+<script src="/ui/qtgh_bank_report.js?v=20261002_1"></script>
+</body>
+</html>

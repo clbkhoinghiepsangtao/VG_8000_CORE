@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kết quả Giao hàng - Lái xe - Phương tiện</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#111827}
+.wrap{padding:18px}
+.panel{background:#fff;border:1px solid #dbe3ee;border-radius:14px;padding:18px;margin-bottom:14px}
+h1{margin:0 0 6px;font-size:26px}
+.sub{color:#667085;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+label{font-size:13px;font-weight:600}
+input,select,button{padding:9px 11px;border:1px solid #cfd8e3;border-radius:8px;background:white}
+button{cursor:pointer}
+button.primary{background:#1769e0;color:#fff;border-color:#1769e0}
+.cards{display:flex;gap:10px;flex-wrap:wrap}
+.card{border:1px solid #dbe3ee;border-radius:10px;padding:10px 13px;min-width:145px}
+.card .t{font-size:12px;color:#667085}
+.card .v{font-size:18px;font-weight:700;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:7px;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+th{background:#f8fafc;text-align:left;position:sticky;top:0}
+.num{text-align:right}
+.scroll{overflow:auto;max-height:60vh}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button.active{background:#1769e0;color:white}
+.status{padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc;margin-top:10px}
+.bad{color:#b42318}
+.ok{color:#067647}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>GH-KQ01 – Kết quả Giao hàng / Lái xe / Phương tiện</h1>
+    <div class="sub">
+      Số tiền thực tính = SL thực giao × Đơn giá có VAT − CK/KM theo dòng.
+      Không trừ thưởng trưng bày và thưởng tích lũy cấp đơn.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label>Từ ngày<br><input id="fromDate" type="date"></label>
+      <label>Đến ngày<br><input id="toDate" type="date"></label>
+      <label>NV giao hàng<br><select id="nvgh"><option value="">Tất cả</option></select></label>
+      <label>Lái xe<br><select id="driver"><option value="">Tất cả</option></select></label>
+      <label>Phương tiện<br><select id="vehicle"><option value="">Tất cả</option></select></label>
+      <button id="run" class="primary">Tra cứu</button>
+      <button id="export">Xuất Excel</button>
+    </div>
+    <div id="status" class="status">Đang tải dữ liệu...</div>
+  </div>
+
+  <div class="panel"><div id="cards" class="cards"></div></div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button data-type="NVGH" class="active">NV giao hàng</button>
+      <button data-type="LAI_XE">Lái xe</button>
+      <button data-type="PHUONG_TIEN">Phương tiện</button>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Mã</th><th>Tên</th>
+          <th class="num">Đơn nhận</th><th class="num">Đơn giao TC</th>
+          <th class="num">Giao đủ</th><th class="num">Giao 1 phần</th><th class="num">Vỡ 100%</th>
+          <th class="num">KH giao TC</th>
+          <th class="num">Khối lượng (kg)</th><th class="num">Số tiền thực tính</th><th class="num">D0</th><th class="num">D1</th><th class="num">D2</th><th class="num">D3+</th><th class="num">% ≤ D2</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API="/api/qtgh-stable";
+  const $=id=>document.getElementById(id);
+
+  const fromDate=$("fromDate");
+  const toDate=$("toDate");
+  const nvgh=$("nvgh");
+  const driver=$("driver");
+  const vehicle=$("vehicle");
+  const runBtn=$("run");
+  const exportBtn=$("export");
+  const cards=$("cards");
+  const tbody=$("tbody");
+  const status=$("status");
+
+  const fmt=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+  let report=null;
+  let currentType="NVGH";
+
+  async function get(path){
+    const r=await fetch(API+path);
+    const t=await r.text();
+    let x;
+    try{x=JSON.parse(t)}catch{x=t}
+    if(!r.ok) throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+    return x;
+  }
+
+  function setStatus(msg,bad=false){
+    status.innerHTML=`<span class="${bad?"bad":"ok"}">${msg}</span>`;
+  }
+
+  function addEmployeeOptions(select,rows){
+    (rows||[]).forEach(x=>{
+      const opt=document.createElement("option");
+      opt.value=x.ma_nv;
+      opt.textContent=`${x.ma_nv} - ${x.ten_nv||""}`;
+      select.appendChild(opt);
+    });
+  }
+
+  async function init(){
+    try{
+      setStatus("Đang đọc danh mục giao hàng...");
+      const m=await get("/gh-kq/meta-v100");
+
+      addEmployeeOptions(nvgh,m.nvgh);
+      addEmployeeOptions(driver,m.drivers);
+
+      (m.vehicles||[]).forEach(x=>{
+        const opt=document.createElement("option");
+        opt.value=x;
+        opt.textContent=x;
+        vehicle.appendChild(opt);
+      });
+
+      document.querySelectorAll(".tabs button").forEach(b=>{
+        b.addEventListener("click",()=>{
+          document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
+          b.classList.add("active");
+          currentType=b.dataset.type;
+          renderRows();
+        });
+      });
+
+      runBtn.addEventListener("click",load);
+      exportBtn.addEventListener("click",exportExcel);
+
+      await load();
+    }catch(e){
+      console.error(e);
+      setStatus("Lỗi tải GH-KQ01: "+e.message,true);
+    }
+  }
+
+  async function load(){
+    try{
+      setStatus("Đang tính kết quả giao hàng...");
+      const p=new URLSearchParams();
+      if(fromDate.value)p.set("from_date",fromDate.value);
+      if(toDate.value)p.set("to_date",toDate.value);
+      if(nvgh.value)p.set("ma_nvgh",nvgh.value);
+      if(driver.value)p.set("ma_lai_xe",driver.value);
+      if(vehicle.value)p.set("phuong_tien",vehicle.value);
+
+      report=await get("/gh-kq/report-v100?"+p.toString());
+      const s=report.summary||{};
+
+      cards.innerHTML=[
+        ["Số đơn",s.so_don],
+        ["Đơn giao TC",s.so_don_giao_tc],
+        ["Giao đủ",s.giao_du],
+        ["Giao một phần",s.giao_mot_phan],
+        ["Vỡ 100%",s.vo_100],
+        ["Khối lượng giao (kg)",fmt(s.khoi_luong_kg)],
+        ["Số tiền thực tính",fmt(s.so_tien_thuc_tinh)],["D0",s.d0||0],["D1",s.d1||0],["D2",s.d2||0],["D3+",s.d3p||0],["Tỷ lệ giao ≤ D2",(s.pct_le_d2||0).toFixed(1)+"%"]
+      ].map(a=>`<div class="card"><div class="t">${a[0]}</div><div class="v">${a[1]??0}</div></div>`).join("");
+
+      renderRows();
+      setStatus(`Đã tải ${report.details?.length||0} đơn quyết toán khóa.`);
+    }catch(e){
+      console.error(e);
+      setStatus("Lỗi tính báo cáo: "+e.message,true);
+    }
+  }
+
+  function renderRows(){
+    const rows=(report?.rows||[]).filter(r=>r.type===currentType);
+    tbody.innerHTML=rows.map(r=>`<tr>
+      <td><b>${r.code}</b></td>
+      <td>${r.name||""}</td>
+      <td class="num">${r.so_don_nhan}</td>
+      <td class="num">${r.so_don_giao_tc}</td>
+      <td class="num">${r.giao_du}</td>
+      <td class="num">${r.giao_mot_phan}</td>
+      <td class="num">${r.vo_100}</td>
+      <td class="num">${r.so_kh_giao_tc}</td>
+      <td class="num">${fmt(r.khoi_luong_kg)}</td>
+      <td class="num"><b>${fmt(r.so_tien_thuc_tinh)}</b></td><td class="num">${r.d0||0}</td><td class="num">${r.d1||0}</td><td class="num">${r.d2||0}</td><td class="num">${r.d3p||0}</td><td class="num">${(r.pct_le_d2||0).toFixed(1)}%</td>
+    </tr>`).join("");
+  }
+
+  function exportExcel(){
+    const rows=(report?.rows||[]).filter(r=>r.type===currentType);
+    if(!rows.length){
+      alert("Không có dữ liệu để xuất");
+      return;
+    }
+
+    const head=["Mã","Tên","Đơn nhận","Đơn giao TC","Giao đủ","Giao 1 phần","Vỡ 100%","KH giao TC","Khối lượng kg","Số tiền thực tính","D0","D1","D2","D3+","% ≤ D2"];
+    const html=`<table border="1"><tr>${head.map(x=>`<th>${x}</th>`).join("")}</tr>${
+      rows.map(r=>`<tr>
+        <td>${r.code}</td><td>${r.name||""}</td>
+        <td>${r.so_don_nhan}</td><td>${r.so_don_giao_tc}</td>
+        <td>${r.giao_du}</td><td>${r.giao_mot_phan}</td><td>${r.vo_100}</td>
+        <td>${r.so_kh_giao_tc}</td><td>${r.khoi_luong_kg}</td>
+        <td>${r.so_tien_thuc_tinh}</td><td>${r.d0||0}</td><td>${r.d1||0}</td><td>${r.d2||0}</td><td>${r.d3p||0}</td><td>${r.pct_le_d2||0}%</td>
+      </tr>`).join("")
+    }</table>`;
+
+    const blob=new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`GH_KQ_${currentType}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},150);
+  }
+
+  init();
+})();
+</script>
+
+<script>
+// ===== GH KQ STABLE V1.0.3 ROUTE SWITCH =====
+(function(){
+  const f=window.fetch.bind(window);
+  window.fetch=function(input,init){
+    let url=String(input||"");
+    if(url.includes("/api/qtgh-stable/gh-kq/report-v100")){
+      input=url.replace(
+        "/api/qtgh-stable/gh-kq/report-v100",
+        "/api/qtgh-stable/gh-kq/report-v103"
+      );
+    }
+    return f(input,init);
+  };
+})();
+</script>
+
+</body>
+</html>

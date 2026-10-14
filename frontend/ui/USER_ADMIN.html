@@ -1,0 +1,108 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Tài khoản & Phân quyền</title><style>body{font-family:Arial;background:#f5f7fb}.wrap{padding:16px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:14px;margin-bottom:14px}.row{display:flex;gap:8px;flex-wrap:wrap}input,select,button{padding:8px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.perm{border:1px solid #eee;padding:8px}.tmp{font-size:20px;font-weight:bold;background:#fff7ed;padding:10px}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #eee}</style>
+<style id="vg-password-toggle-style">
+.vg-pass-wrap{display:flex;gap:6px;align-items:center;width:100%}
+.vg-pass-wrap input{flex:1;min-width:0}
+.vg-pass-toggle{white-space:nowrap;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#172033;cursor:pointer}
+.vg-temp-box{margin-top:10px;padding:12px;border:1px solid #f59e0b;background:#fff7ed;border-radius:9px}
+.vg-temp-password{font-size:20px;font-weight:800;letter-spacing:.6px;padding:8px 0;word-break:break-all}
+.vg-copy-btn{margin-left:8px}
+</style>
+
+<style id="vg-password-toggle-layout-v2">
+.vg-pass-wrap{
+  display:flex !important;
+  align-items:stretch !important;
+  gap:6px !important;
+  width:100% !important;
+}
+.vg-pass-wrap input{
+  flex:1 1 auto !important;
+  width:auto !important;
+  min-width:0 !important;
+  margin:0 !important;
+}
+.vg-pass-wrap .vg-pass-toggle{
+  flex:0 0 72px !important;
+  width:72px !important;
+  min-width:72px !important;
+  max-width:72px !important;
+  margin:0 !important;
+  padding:8px 10px !important;
+  background:#fff !important;
+  color:#172033 !important;
+  border:1px solid #cbd5e1 !important;
+  border-radius:7px !important;
+  cursor:pointer !important;
+  font-weight:600 !important;
+}
+</style>
+</head><body><div class=wrap><h2>Tài khoản & Phân quyền</h2><div class=card><div class=row><input id=cu placeholder=Username><input id=cn placeholder="Họ tên"><select id=cr><option>KE_TOAN</option><option>KE_TOAN_TRUONG</option><option>THU_KHO</option><option>THU_QUY</option><option>QUAN_LY</option><option>VIEWER</option><option>HCNS</option><option>ADMIN</option></select><button id=createBtn>Tạo + mật khẩu tạm</button></div><div id=tempBox></div></div><div class=card id=list></div><div class=card id=editCard style="display:none"><h3 id=editTitle></h3><div class=grid id=grid></div><button id=saveBtn>Lưu quyền</button><button id=resetBtn>Reset mật khẩu</button><button id=statusBtn></button><div id=msg></div></div></div><script>const token=localStorage.getItem("vg_token");if(!token)location.href="/login";async function api(url,opt={}){opt.headers=Object.assign({},opt.headers||{},{"Authorization":"Bearer "+token,"Content-Type":"application/json"});const r=await fetch(url,opt);let x={};try{x=await r.json()}catch(e){}if(!r.ok)throw new Error(x.detail||("HTTP "+r.status));return x}const screens=["QTGH_UI02","QTGH_UI04","QTGH_UI05","QTGH_UI06","QTGH_UI07","QTGH_UI08","QTGH_UI09","QTGH_UI10","QTGH_UI11"];let rows=[],cur=null;function opts(v){return `<option ${v==="NONE"?"selected":""}>NONE</option><option ${v==="VIEW"?"selected":""}>VIEW</option><option ${v==="EDIT"?"selected":""}>EDIT</option>`}async function load(){const x=await api("/api/admin/accounts");rows=x.rows||[];list.innerHTML=`<table><tr><th>User</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th>Đổi lần đầu</th><th></th></tr>${rows.map((r,i)=>`<tr><td>${r.username}</td><td>${r.full_name}</td><td>${r.role}</td><td>${r.is_active?"ACTIVE":"INACTIVE"}</td><td>${r.must_change_password?"Có":"Không"}</td><td><button onclick="edit(${i})">Quản lý</button></td></tr>`).join("")}</table>`}window.edit=i=>{cur=rows[i];editCard.style.display="block";editTitle.textContent=cur.username;grid.innerHTML=screens.map(s=>`<div class=perm>${s}<br><select data-s="${s}">${opts(cur.screen_permissions[s]||"NONE")}</select></div>`).join("");statusBtn.textContent=cur.is_active?"Khóa":"Mở"};createBtn.onclick=async()=>{const x=await api("/api/admin/accounts",{method:"POST",body:JSON.stringify({username:cu.value,full_name:cn.value,role:cr.value})});vgShowTemporaryPassword(x.username,x.temporary_password,"tempBox");await load()};saveBtn.onclick=async()=>{const p={};document.querySelectorAll("[data-s]").forEach(x=>p[x.dataset.s]=x.value);await api(`/api/admin/accounts/${cur.username}/permissions`,{method:"PUT",body:JSON.stringify({screen_permissions:p})});await load()};resetBtn.onclick=async()=>{const x=await api(`/api/admin/accounts/${cur.username}/reset-password`,{method:"POST",body:"{}"});vgShowTemporaryPassword(cur.username,x.temporary_password,"msg");await load()};statusBtn.onclick=async()=>{await api(`/api/admin/accounts/${cur.username}/status`,{method:"POST",body:JSON.stringify({is_active:!cur.is_active})});editCard.style.display="none";await load()};load();</script>
+<script id="vg-password-toggle-js">
+(function(){
+  function enhancePasswordInput(input){
+    if(!input || input.dataset.vgToggleDone==="1") return;
+    input.dataset.vgToggleDone="1";
+    const wrap=document.createElement("div");
+    wrap.className="vg-pass-wrap";
+    input.parentNode.insertBefore(wrap,input);
+    wrap.appendChild(input);
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="vg-pass-toggle";
+    btn.textContent="Hiện";
+    btn.setAttribute("aria-label","Hiện hoặc ẩn mật khẩu");
+    btn.onclick=function(){
+      const show=input.type==="password";
+      input.type=show?"text":"password";
+      btn.textContent=show?"Ẩn":"Hiện";
+    };
+    wrap.appendChild(btn);
+  }
+  function init(){
+    document.querySelectorAll('input[type="password"]').forEach(enhancePasswordInput);
+  }
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",init);
+  }else{
+    init();
+  }
+  window.vgEnhancePasswordInputs=init;
+})();
+</script>
+
+
+<script id="vg-admin-temp-password-helper">
+window.vgShowTemporaryPassword=function(username,password,targetId){
+  const target=document.getElementById(targetId);
+  if(!target) return;
+  const safeUser=String(username||"");
+  const safePass=String(password||"");
+  target.innerHTML=`
+    <div class="vg-temp-box">
+      <div><b>Tài khoản:</b> ${safeUser}</div>
+      <div>Mật khẩu tạm mới — chỉ hiển thị tại thời điểm này:</div>
+      <div class="vg-temp-password" id="vgTempPasswordValue">${safePass}</div>
+      <button type="button" class="vg-copy-btn" id="vgCopyTempPassword">Sao chép mật khẩu</button>
+      <span id="vgCopyStatus"></span>
+    </div>`;
+  const btn=document.getElementById("vgCopyTempPassword");
+  if(btn){
+    btn.onclick=async function(){
+      try{
+        await navigator.clipboard.writeText(safePass);
+        document.getElementById("vgCopyStatus").textContent=" Đã sao chép";
+      }catch(e){
+        const ta=document.createElement("textarea");
+        ta.value=safePass;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        document.getElementById("vgCopyStatus").textContent=" Đã sao chép";
+      }
+    };
+  }
+};
+</script>
+
+</body></html>

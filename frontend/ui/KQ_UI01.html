@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kết quả NV kinh doanh</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#111827}
+.wrap{padding:18px}
+.panel{background:white;border:1px solid #dbe3ee;border-radius:14px;padding:18px;margin-bottom:14px}
+h1{margin:0 0 4px;font-size:27px}
+h2{margin:0 0 12px;font-size:20px}
+.sub{color:#667085;font-size:13px}
+.filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+label{font-weight:600;font-size:13px}
+input,select,button{padding:9px 11px;border:1px solid #cfd8e3;border-radius:8px;background:white}
+button.primary{background:#1769e0;color:white;border-color:#1769e0}
+.cards{display:flex;gap:10px;flex-wrap:wrap}
+.card{border:1px solid #dbe3ee;border-radius:11px;padding:11px 13px;min-width:145px}
+.card .t{font-size:12px;color:#667085}.card .v{font-size:19px;font-weight:700;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border-bottom:1px solid #e5e7eb;padding:8px 7px;white-space:nowrap}
+th{background:#f8fafc;text-align:left;position:sticky;top:0}
+.num{text-align:right}
+.ok{color:#067647}.bad{color:#b42318}
+.status{padding:9px 11px;border-radius:8px;background:#f8fafc;border:1px solid #e5e7eb}
+.scroll{overflow:auto;max-height:62vh}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>KQ-UI01 – Kết quả Nhân viên kinh doanh</h1>
+    <div class="sub">
+      Nguồn thật: DMS/MBW COMMITTED + quyết toán giao hàng đã khóa + DM01/DM02/DM02A/DM03.
+      Không sử dụng số liệu mẫu.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="filters">
+      <label>Tháng<br><select id="month"></select></label>
+      <label>Nhân viên<br><select id="emp"><option value="">Tất cả</option></select></label>
+      <label>Vùng KD<br><select id="region"><option value="">Tất cả</option></select></label>
+      <label>BU<br><select id="bu"><option value="">Tất cả</option></select></label>
+      <button id="run" class="primary">Tra cứu</button>
+    </div>
+    <div id="sourceInfo" class="status" style="margin-top:12px"></div>
+  </div>
+
+  <div class="panel">
+    <div id="cards" class="cards"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Bảng kết quả nhân viên kinh doanh</h2>
+    <div class="sub" style="margin-bottom:10px">
+      Doanh số giao thành công = SL hàng bán thực giao × đơn giá chưa VAT.
+      Giao đủ + giao một phần được tính; vỡ 100% không tính đơn thành công.
+    </div>
+    <div id="status" class="status">Đang tải...</div>
+    <div class="scroll" style="margin-top:10px">
+      <table>
+        <thead><tr>
+          <th>Mã NV</th><th>Tên NV</th><th>Vùng KD</th>
+          <th class="num">DS đặt</th><th class="num">DS giao TC</th>
+          <th class="num">Đơn đặt</th><th class="num">Đơn giao TC</th>
+          <th class="num">Giao đủ</th><th class="num">Giao 1 phần</th><th class="num">Vỡ 100%</th>
+          <th class="num">KH có giao TC</th><th class="num">KH phụ trách</th><th class="num">ECO</th>
+          <th>BU – DS giao TC</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const API="/api/qtgh-stable";
+const $=id=>document.getElementById(id);
+const fmt=v=>new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+
+async function get(path){
+  const r=await fetch(API+path);
+  const t=await r.text();
+  let x;
+  try{x=JSON.parse(t)}catch{x=t}
+  if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+  return x;
+}
+
+async function init(){
+  try{
+    const periods=await get("/kq-nvkd/periods-v102");
+    $("month").innerHTML="";
+    (periods.months||[]).forEach(m=>{
+      $("month").insertAdjacentHTML("beforeend",`<option value="${m}">${m}</option>`);
+    });
+    if(!(periods.months||[]).length){
+      $("month").insertAdjacentHTML("beforeend",`<option value="">Không có kỳ</option>`);
+    }
+
+    $("sourceInfo").innerHTML=
+      `Batch nguồn: <b>${fmt(periods.source_rows)}</b> dòng · `+
+      `<b>${fmt(periods.source_orders)}</b> đơn nguồn · `+
+      `Đã QT khóa: <b>${fmt(periods.locked_orders)}</b> đơn · `+
+      `Giao TC: <b>${fmt(periods.successful_orders_locked)}</b> · `+
+      `Vỡ 100%: <b>${fmt(periods.broken_100_locked)}</b>`;
+
+    const meta=await get("/kq-nvkd/meta");
+    (meta.employees||[]).forEach(x=>{
+      $("emp").insertAdjacentHTML("beforeend",
+        `<option value="${x.ma_nv}">${x.ma_nv} - ${x.ten_nv||""}</option>`);
+    });
+
+    [...new Set((meta.employees||[]).map(x=>x.ma_vung_kd).filter(Boolean))].sort().forEach(v=>{
+      $("region").insertAdjacentHTML("beforeend",`<option value="${v}">${v}</option>`);
+    });
+
+    (meta.bus||[]).forEach(v=>$("bu").insertAdjacentHTML("beforeend",`<option value="${v}">${v}</option>`));
+
+    $("run").onclick=run;
+    await run();
+  }catch(e){
+    $("status").innerHTML=`<span class="bad">Lỗi: ${e.message}</span>`;
+  }
+}
+
+async function run(){
+  if(!$("month").value){
+    $("status").textContent="Không có tháng dữ liệu trong batch COMMITTED.";
+    return;
+  }
+
+  try{
+    $("status").textContent="Đang tính số liệu thật...";
+    const p=new URLSearchParams({month:$("month").value});
+    if($("emp").value)p.set("ma_nv",$("emp").value);
+    if($("region").value)p.set("ma_vung_kd",$("region").value);
+    if($("bu").value)p.set("bu",$("bu").value);
+
+    const x=await get("/kq-nvkd/report?"+p.toString());
+    const s=x.summary||{};
+
+    $("cards").innerHTML=[
+      ["Doanh số đặt",fmt(s.doanh_so_dat)],
+      ["Doanh số giao TC",fmt(s.doanh_so_giao)],
+      ["Đơn đặt",fmt(s.so_don_dat)],
+      ["Đơn giao TC",fmt(s.so_don_giao_tc)],
+      ["Giao đủ",fmt(s.don_giao_du)],
+      ["Giao một phần",fmt(s.don_giao_mot_phan)],
+      ["Vỡ 100%",fmt(s.don_vo_100)]
+    ].map(a=>`<div class="card"><div class="t">${a[0]}</div><div class="v">${a[1]}</div></div>`).join("");
+
+    const rows=x.rows||[];
+    $("tbody").innerHTML=rows.map(r=>`<tr>
+      <td><b>${r.ma_nv}</b></td><td>${r.ten_nv||""}</td><td>${r.ma_vung_kd||""}</td>
+      <td class="num">${fmt(r.doanh_so_dat)}</td>
+      <td class="num"><b>${fmt(r.doanh_so_giao)}</b></td>
+      <td class="num">${fmt(r.so_don_dat)}</td><td class="num">${fmt(r.so_don_giao_tc)}</td>
+      <td class="num">${fmt(r.don_giao_du)}</td><td class="num">${fmt(r.don_giao_mot_phan)}</td>
+      <td class="num">${fmt(r.don_vo_100)}</td>
+      <td class="num">${fmt(r.kh_co_don_giao_tc)}</td>
+      <td class="num">${fmt(r.tong_kh_phu_trach)}</td>
+      <td class="num"><b>${r.eco}%</b></td>
+      <td>${(r.by_bu||[]).map(b=>`${b.bu}: ${fmt(b.doanh_so_giao)}`).join("<br>")}</td>
+    </tr>`).join("");
+
+    $("status").innerHTML=`Kỳ <b>${x.month}</b> · <b>${rows.length}</b> nhân viên. Đây là dữ liệu tính từ nguồn COMMITTED và QTGH đã khóa.`;
+  }catch(e){
+    $("status").innerHTML=`<span class="bad">Lỗi tính số liệu: ${e.message}</span>`;
+  }
+}
+
+init();
+</script>
+
+<script>
+// ===== KQ NVKD STABLE V1.0.3 ECO + EXPORT =====
+(function(){
+  const oldInit=window.init;
+  let currentKQRows103=[];
+  let currentMonth103="";
+
+  function fmt103(v){
+    return new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+  }
+
+  async function api103(path){
+    const r=await fetch("/api/qtgh-stable"+path);
+    const t=await r.text();
+    let x;
+    try{x=JSON.parse(t)}catch{x=t}
+    if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+    return x;
+  }
+
+  function addControls103(){
+    const run=document.getElementById("run");
+    if(!run || document.getElementById("export103"))return;
+
+    const exp=document.createElement("button");
+    exp.id="export103";
+    exp.textContent="Xuất Excel";
+    exp.onclick=export103;
+    run.parentNode.appendChild(exp);
+
+    const note=document.createElement("div");
+    note.style.marginTop="10px";
+    note.style.color="#667085";
+    note.style.fontSize="12px";
+    note.textContent="Chỉ tiêu kế hoạch theo BU: chưa có nguồn dữ liệu chỉ tiêu, chưa tính tỷ lệ hoàn thành.";
+    run.closest(".panel")?.appendChild(note);
+  }
+
+  function export103(){
+    if(!currentKQRows103.length){
+      alert("Không có dữ liệu để xuất.");
+      return;
+    }
+
+    const headers=[
+      "Mã NV","Tên NV","Vùng KD","Doanh số đặt","Doanh số giao TC",
+      "Đơn đặt","Đơn giao TC","Giao đủ","Giao một phần","Vỡ 100%",
+      "KH có giao TC","Tổng KH phụ trách","ECO (%)","BU - Doanh số giao TC"
+    ];
+
+    const body=currentKQRows103.map(r=>[
+      r.ma_nv,r.ten_nv||"",r.ma_vung_kd||"",
+      r.doanh_so_dat,r.doanh_so_giao,r.so_don_dat,r.so_don_giao_tc,
+      r.don_giao_du,r.don_giao_mot_phan,r.don_vo_100,
+      r.kh_co_don_giao_tc,r.tong_kh_phu_trach,r.eco,
+      (r.by_bu||[]).map(b=>`${b.bu}: ${b.doanh_so_giao}`).join(" | ")
+    ]);
+
+    const html=`<html><head><meta charset="utf-8"></head><body>
+      <table border="1"><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr>
+      ${body.map(row=>`<tr>${row.map(v=>`<td>${v??""}</td>`).join("")}</tr>`).join("")}
+      </table></body></html>`;
+
+    const blob=new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`KQ_NVKD_${currentMonth103||"BaoCao"}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }
+
+  async function ecoDetail103(ma_nv){
+    const month=document.getElementById("month")?.value;
+    if(!month)return;
+
+    const x=await api103(`/kq-nvkd/eco-detail-v103?month=${encodeURIComponent(month)}&ma_nv=${encodeURIComponent(ma_nv)}`);
+
+    let modal=document.getElementById("ecoModal103");
+    if(!modal){
+      modal=document.createElement("div");
+      modal.id="ecoModal103";
+      modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px";
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:1100px;width:100%;max-height:88vh;overflow:auto;padding:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h2 style="margin:0">Chi tiết ECO – ${x.ma_nv} ${x.ten_nv||""}</h2>
+          <div style="color:#667085;margin-top:5px">
+            Kỳ ${x.month} · KH phụ trách: <b>${x.tong_kh_phu_trach}</b>
+            · Có giao TC: <b>${x.kh_co_giao_tc}</b>
+            · Chưa giao TC: <b>${x.kh_chua_giao_tc}</b>
+            · ECO: <b>${x.eco}%</b>
+          </div>
+        </div>
+        <button id="ecoClose103">Đóng</button>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px">
+        <thead><tr>
+          <th>Mã KH chuẩn</th><th>Mã DMS</th><th>Mã MBW</th><th>Tên KH</th>
+          <th>Địa bàn</th><th>Trạng thái</th><th>Giao TC</th>
+          <th>Số đơn giao TC</th><th>DS giao TC</th>
+        </tr></thead>
+        <tbody>
+        ${(x.rows||[]).map(r=>`<tr>
+          <td>${r.ma_kh_chuan}</td><td>${r.ma_kh_dms||""}</td><td>${r.ma_kh_mbw||""}</td>
+          <td>${r.ten_kh||""}</td><td>${r.ma_dia_ban||""}</td><td>${r.trang_thai||""}</td>
+          <td><b style="color:${r.co_giao_tc?"#067647":"#b42318"}">${r.co_giao_tc?"Có":"Chưa"}</b></td>
+          <td style="text-align:right">${r.so_don_giao_tc}</td>
+          <td style="text-align:right">${fmt103(r.doanh_so_giao)}</td>
+        </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+
+    modal.querySelectorAll("th,td").forEach(el=>{
+      el.style.borderBottom="1px solid #e5e7eb";
+      el.style.padding="7px";
+      el.style.textAlign=el.style.textAlign||"left";
+    });
+
+    document.getElementById("ecoClose103").onclick=()=>modal.remove();
+  }
+
+  // Observe result table refresh and add ECO action buttons.
+  function enhanceRows103(){
+    const tbody=document.getElementById("tbody");
+    if(!tbody)return;
+    [...tbody.querySelectorAll("tr")].forEach(tr=>{
+      const cells=tr.querySelectorAll("td");
+      if(cells.length<13)return;
+      const ma_nv=cells[0].textContent.trim();
+      const ecoCell=cells[12];
+      if(ecoCell.querySelector(".ecoBtn103"))return;
+      const b=document.createElement("button");
+      b.className="ecoBtn103";
+      b.textContent="Chi tiết";
+      b.style.cssText="margin-left:6px;padding:3px 6px;font-size:11px";
+      b.onclick=()=>ecoDetail103(ma_nv);
+      ecoCell.appendChild(b);
+    });
+  }
+
+  // Wrap fetch to capture report rows without changing V1.0.2 formula.
+  const origFetch=window.fetch;
+  window.fetch=async function(...args){
+    const response=await origFetch.apply(this,args);
+    try{
+      const url=String(args[0]||"");
+      if(url.includes("/api/qtgh-stable/kq-nvkd/report?")){
+        const clone=response.clone();
+        clone.json().then(x=>{
+          currentKQRows103=x.rows||[];
+          currentMonth103=x.month||"";
+          setTimeout(enhanceRows103,50);
+        }).catch(()=>{});
+      }
+    }catch(e){}
+    return response;
+  };
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(addControls103,100));
+  }else{
+    setTimeout(addControls103,100);
+  }
+
+  const obs=new MutationObserver(()=>enhanceRows103());
+  document.addEventListener("DOMContentLoaded",()=>{
+    const tb=document.getElementById("tbody");
+    if(tb)obs.observe(tb,{childList:true,subtree:true});
+  });
+})();
+</script>
+
+
+<script>
+// ===== KQ NVKD STABLE V1.0.4 ECO ROUTE SWITCH =====
+(function(){
+  const originalFetch104=window.fetch;
+
+  window.fetch=function(input,init){
+    let url=String(input||"");
+
+    if(url.includes("/api/qtgh-stable/kq-nvkd/report?")){
+      url=url.replace(
+        "/api/qtgh-stable/kq-nvkd/report?",
+        "/api/qtgh-stable/kq-nvkd/report-v104?"
+      );
+      input=url;
+    }
+
+    if(url.includes("/api/qtgh-stable/kq-nvkd/eco-detail-v103?")){
+      url=url.replace(
+        "/api/qtgh-stable/kq-nvkd/eco-detail-v103?",
+        "/api/qtgh-stable/kq-nvkd/eco-detail-v104?"
+      );
+      input=url;
+    }
+
+    return originalFetch104.call(this,input,init);
+  };
+
+  document.addEventListener("DOMContentLoaded",()=>{
+    const info=document.getElementById("sourceInfo");
+    if(info){
+      const badge=document.createElement("span");
+      badge.style.cssText="margin-left:8px;color:#067647;font-weight:700";
+      badge.textContent="· ECO owner-map V1.0.4";
+      info.appendChild(badge);
+    }
+  });
+})();
+</script>
+
+
+
+
+
+
+
+
+<script>
+// ===== KQ NVKD STABLE V1.0.7 TARGET IMPORT UI =====
+(function(){
+  let targetFile107=null;
+  let preview107=null;
+
+  function fmt107(v){
+    return new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+  }
+
+  async function json107(url,opt){
+    const r=await fetch(url,opt);
+    const t=await r.text();
+    let x;
+    try{x=JSON.parse(t)}catch{x=t}
+    if(!r.ok)throw new Error(typeof x==="string"?x:(x.detail||JSON.stringify(x)));
+    return x;
+  }
+
+  function installPanel107(){
+    if(document.getElementById("targetPanel107"))return;
+
+    const panels=[...document.querySelectorAll(".panel")];
+    const filterPanel=panels.find(p=>p.querySelector("#run"));
+    if(!filterPanel)return;
+
+    const box=document.createElement("div");
+    box.id="targetPanel107";
+    box.style.cssText="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:12px";
+    box.innerHTML=`
+      <div style="font-weight:700;margin-bottom:8px">Chỉ tiêu NVKD</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button id="downloadTarget107">Tải mẫu chỉ tiêu</button>
+        <input id="fileTarget107" type="file" accept=".xlsx" style="max-width:280px">
+        <button id="previewTarget107">Kiểm tra file</button>
+        <button id="commitTarget107" class="primary" disabled>Ghi nhận chỉ tiêu</button>
+      </div>
+      <div id="targetStatus107" style="margin-top:8px;color:#667085"></div>
+      <div id="targetPreview107" style="margin-top:8px;overflow:auto"></div>
+    `;
+    filterPanel.appendChild(box);
+
+    document.getElementById("downloadTarget107").onclick=()=>{
+      window.location.href="/api/qtgh-stable/kq-nvkd/target-template-v107";
+    };
+
+    document.getElementById("fileTarget107").onchange=e=>{
+      targetFile107=e.target.files?.[0]||null;
+      preview107=null;
+      document.getElementById("commitTarget107").disabled=true;
+      document.getElementById("targetStatus107").textContent=
+        targetFile107?`Đã chọn: ${targetFile107.name}`:"";
+      document.getElementById("targetPreview107").innerHTML="";
+    };
+
+    document.getElementById("previewTarget107").onclick=previewTarget107;
+    document.getElementById("commitTarget107").onclick=commitTarget107;
+  }
+
+  async function previewTarget107(){
+    if(!targetFile107){
+      alert("Hãy chọn file .xlsx");
+      return;
+    }
+
+    try{
+      const raw=await targetFile107.arrayBuffer();
+      const x=await json107(
+        "/api/qtgh-stable/kq-nvkd/target-preview-v107?filename="+encodeURIComponent(targetFile107.name),
+        {method:"POST",headers:{"Content-Type":"application/octet-stream"},body:raw}
+      );
+      preview107=x;
+
+      document.getElementById("targetStatus107").innerHTML=
+        `Hợp lệ: <b>${x.valid_count}</b> · Lỗi: <b style="color:${x.error_count?"#b42318":"#067647"}">${x.error_count}</b>`;
+
+      document.getElementById("commitTarget107").disabled=x.error_count>0;
+
+      document.getElementById("targetPreview107").innerHTML=`
+        <table style="font-size:12px;width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th>THÁNG</th><th>MA_NV</th><th>Tên NV</th>
+            <th>CT_HC</th><th>CT_PC</th><th>CT_BE</th><th>CT_F</th>
+            <th>CT_DSTL</th><th>CT_DSTT</th><th>CT_ECO</th><th>Lỗi</th>
+          </tr></thead>
+          <tbody>
+          ${(x.rows||[]).map(r=>`<tr>
+            <td>${r.thang}</td><td><b>${r.ma_nv}</b></td><td>${r.ten_nv||""}</td>
+            <td>${fmt107(r.ct_hc)}</td><td>${fmt107(r.ct_pc)}</td>
+            <td>${fmt107(r.ct_be)}</td><td>${fmt107(r.ct_f)}</td>
+            <td><b>${fmt107(r.ct_dstl)}</b></td>
+            <td>${fmt107(r.ct_dstt)}</td>
+            <td>${(Number(r.ct_eco||0)*100).toFixed(2)}%</td>
+            <td style="color:#b42318">${(r.errors||[]).join("; ")}</td>
+          </tr>`).join("")}
+          </tbody>
+        </table>`;
+
+      document.querySelectorAll("#targetPreview107 th,#targetPreview107 td").forEach(el=>{
+        el.style.borderBottom="1px solid #e5e7eb";
+        el.style.padding="6px";
+        el.style.whiteSpace="nowrap";
+      });
+
+    }catch(e){
+      document.getElementById("targetStatus107").innerHTML=
+        `<span style="color:#b42318">Lỗi: ${e.message}</span>`;
+      document.getElementById("commitTarget107").disabled=true;
+    }
+  }
+
+  async function commitTarget107(){
+    if(!targetFile107 || !preview107 || preview107.error_count){
+      alert("File chưa được kiểm tra hoặc còn lỗi.");
+      return;
+    }
+
+    if(!confirm("Ghi nhận chỉ tiêu vào hệ thống? Nếu THANG + MA_NV đã tồn tại sẽ cập nhật bằng file mới."))return;
+
+    try{
+      const raw=await targetFile107.arrayBuffer();
+      const x=await json107(
+        "/api/qtgh-stable/kq-nvkd/target-commit-v107?filename="+encodeURIComponent(targetFile107.name),
+        {method:"POST",headers:{"Content-Type":"application/octet-stream"},body:raw}
+      );
+
+      document.getElementById("targetStatus107").innerHTML=
+        `<b style="color:#067647">Đã ghi nhận ${x.committed} nhân viên · Kỳ ${x.months.join(", ")}</b>`;
+
+      // Refresh report to show targets.
+      document.getElementById("run")?.click();
+
+    }catch(e){
+      document.getElementById("targetStatus107").innerHTML=
+        `<span style="color:#b42318">Lỗi ghi nhận: ${e.message}</span>`;
+    }
+  }
+
+  // Switch only report route from V104 to V107.
+  const fetchBefore107=window.fetch;
+  window.fetch=function(input,init){
+    let url=String(input||"");
+    if(url.includes("/api/qtgh-stable/kq-nvkd/report-v104?")){
+      input=url.replace(
+        "/api/qtgh-stable/kq-nvkd/report-v104?",
+        "/api/qtgh-stable/kq-nvkd/report-v107?"
+      );
+    }
+    return fetchBefore107.call(this,input,init);
+  };
+
+  // Add target columns after every result refresh.
+  async function enhanceTargetColumns107(){
+    const table=document.querySelector(".scroll table");
+    if(!table || table.dataset.target107==="1")return;
+
+    const month=document.getElementById("month")?.value;
+    if(!month)return;
+
+    try{
+      const x=await json107("/api/qtgh-stable/kq-nvkd/report-v107?month="+encodeURIComponent(month)
+        +(document.getElementById("emp")?.value?"&ma_nv="+encodeURIComponent(document.getElementById("emp").value):"")
+        +(document.getElementById("region")?.value?"&ma_vung_kd="+encodeURIComponent(document.getElementById("region").value):"")
+        +(document.getElementById("bu")?.value?"&bu="+encodeURIComponent(document.getElementById("bu").value):"")
+      );
+
+      const head=table.querySelector("thead tr");
+      ["CT_DSTL","% đạt DSTL","CT_DSTT","% đạt DSTT","CT_ECO","% đạt ECO"].forEach(h=>{
+        const th=document.createElement("th");
+        th.textContent=h;
+        head.appendChild(th);
+      });
+
+      const byNv=new Map((x.rows||[]).map(r=>[r.ma_nv,r]));
+      [...table.querySelectorAll("tbody tr")].forEach(tr=>{
+        const ma=tr.querySelector("td")?.textContent?.trim();
+        const r=byNv.get(ma);
+        const t=r?.target;
+        const vals=t?[
+          fmt107(t.ct_dstl),t.pct_dstl.toFixed(2)+"%",
+          fmt107(t.ct_dstt),t.pct_dstt.toFixed(2)+"%",
+          (t.ct_eco*100).toFixed(2)+"%",t.pct_eco.toFixed(2)+"%"
+        ]:["","","","","",""];
+        vals.forEach(v=>{
+          const td=document.createElement("td");
+          td.textContent=v;
+          td.style.textAlign="right";
+          tr.appendChild(td);
+        });
+      });
+
+      table.dataset.target107="1";
+    }catch(e){}
+  }
+
+  function resetTargetColumns107(){
+    const table=document.querySelector(".scroll table");
+    if(table)table.dataset.target107="";
+    setTimeout(enhanceTargetColumns107,150);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>{
+      installPanel107();
+      setTimeout(enhanceTargetColumns107,400);
+      document.getElementById("run")?.addEventListener("click",()=>setTimeout(resetTargetColumns107,300));
+    });
+  }else{
+    installPanel107();
+    setTimeout(enhanceTargetColumns107,400);
+  }
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+// ===== KQ NVKD STABLE V1.0.10 UNIFIED UI + EXPORT =====
+(function(){
+  const oldFetch110=window.fetch;
+  let lastReport110=null;
+
+  window.fetch=function(input,init){
+    let url=String(input||"");
+    if(url.includes("/api/qtgh-stable/kq-nvkd/report-v104?") ||
+       url.includes("/api/qtgh-stable/kq-nvkd/report-v107?") ||
+       url.includes("/api/qtgh-stable/kq-nvkd/report-v109?")){
+      url=url
+        .replace("/api/qtgh-stable/kq-nvkd/report-v104?","/api/qtgh-stable/kq-nvkd/report-v110?")
+        .replace("/api/qtgh-stable/kq-nvkd/report-v107?","/api/qtgh-stable/kq-nvkd/report-v110?")
+        .replace("/api/qtgh-stable/kq-nvkd/report-v109?","/api/qtgh-stable/kq-nvkd/report-v110?");
+      input=url;
+    }
+    return oldFetch110.call(this,input,init);
+  };
+
+  function fmt110(v){
+    return new Intl.NumberFormat("vi-VN",{maximumFractionDigits:0}).format(Number(v||0));
+  }
+
+  async function getReport110(){
+    const p=new URLSearchParams({month:document.getElementById("month")?.value||""});
+    const emp=document.getElementById("emp")?.value;
+    const region=document.getElementById("region")?.value;
+    const bu=document.getElementById("bu")?.value;
+    if(emp)p.set("ma_nv",emp);
+    if(region)p.set("ma_vung_kd",region);
+    if(bu)p.set("bu",bu);
+
+    const r=await oldFetch110("/api/qtgh-stable/kq-nvkd/report-v110?"+p.toString());
+    const x=await r.json();
+    if(!r.ok)throw new Error(x.detail||"Lỗi báo cáo");
+    lastReport110=x;
+    return x;
+  }
+
+  async function renderUnified110(){
+    const table=document.querySelector(".scroll table");
+    if(!table)return;
+
+    let x;
+    try{x=await getReport110()}catch(e){console.error(e);return}
+
+    const headers=[...table.querySelectorAll("thead th")].map(h=>h.textContent.trim());
+    const idxByName=s=>headers.findIndex(h=>h.toUpperCase().includes(s));
+
+    const buIdx=idxByName("BU");
+    const dstlIdx=idxByName("CT_DSTL");
+    const pdstlIdx=idxByName("% ĐẠT DSTL");
+    const dsttIdx=idxByName("CT_DSTT");
+    const pdsttIdx=idxByName("% ĐẠT DSTT");
+    const ctecoIdx=idxByName("CT_ECO");
+    const pecoIdx=idxByName("% ĐẠT ECO");
+
+    if(buIdx>=0)table.querySelectorAll("thead th")[buIdx].textContent="BU – TH / CT / % đạt";
+
+    const byNv=new Map((x.rows||[]).map(r=>[r.ma_nv,r]));
+
+    [...table.querySelectorAll("tbody tr")].forEach(tr=>{
+      const cells=[...tr.querySelectorAll("td")];
+      if(!cells.length)return;
+      const ma=cells[0].textContent.trim();
+      const r=byNv.get(ma);
+      if(!r)return;
+
+      const t=r.target;
+
+      if(buIdx>=0 && cells[buIdx]){
+        cells[buIdx].innerHTML=(r.by_bu||[]).map(b=>{
+          const ct=Number(b.ct_bu||0);
+          return `<div style="white-space:nowrap;margin:2px 0">
+            <b>${b.bu}</b>: TH ${fmt110(b.doanh_so_giao)}
+            · CT ${ct?fmt110(ct):"-"}
+            · <b>${ct?Number(b.pct_bu||0).toFixed(2)+"%":"-"}</b>
+          </div>`;
+        }).join("");
+      }
+
+      if(t){
+        if(dstlIdx>=0)cells[dstlIdx].textContent=fmt110(t.ct_dstl);
+        if(pdstlIdx>=0)cells[pdstlIdx].textContent=t.pct_dstl.toFixed(2)+"%";
+        if(dsttIdx>=0)cells[dsttIdx].textContent=fmt110(t.ct_dstt);
+        if(pdsttIdx>=0)cells[pdsttIdx].textContent=t.pct_dstt.toFixed(2)+"%";
+        if(ctecoIdx>=0)cells[ctecoIdx].textContent=t.ct_eco_pct.toFixed(2)+"%";
+        if(pecoIdx>=0)cells[pecoIdx].textContent=t.pct_eco.toFixed(2)+"%";
+      }
+    });
+  }
+
+  function xmlEsc110(v){
+    return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function xcell110(v,type="String",style="Text"){
+    return `<Cell ss:StyleID="${style}"><Data ss:Type="${type}">${xmlEsc110(v)}</Data></Cell>`;
+  }
+
+  function download110(filename,rows,widths){
+    const xml=`<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+<Style ss:ID="Default"><Font ss:FontName="Arial" ss:Size="10"/></Style>
+<Style ss:ID="Header"><Font ss:Bold="1"/><Alignment ss:Horizontal="Center" ss:WrapText="1"/>
+<Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/></Style>
+<Style ss:ID="Text"/>
+<Style ss:ID="Num"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0"/></Style>
+<Style ss:ID="Pct"><Alignment ss:Horizontal="Right"/><NumberFormat ss:Format="0.00%"/></Style>
+</Styles>
+<Worksheet ss:Name="KQ_NVKD"><Table>
+${widths.map(w=>`<Column ss:Width="${w}"/>`).join("")}
+${rows.join("")}
+</Table></Worksheet></Workbook>`;
+
+    const blob=new Blob(["\ufeff",xml],{type:"application/vnd.ms-excel;charset=utf-8"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},150);
+  }
+
+  async function export110(){
+    const x=await getReport110();
+    const headers=[
+      "STT","Mã NV","Tên NV","Vùng KD","DS đặt","DS giao TC",
+      "Đơn đặt","Đơn giao TC","Giao đủ","Giao 1 phần","Vỡ 100%",
+      "KH có giao TC","KH phụ trách","ECO",
+      "BU – TH / CT / % đạt",
+      "CT_DSTL","% đạt DSTL","CT_DSTT","% đạt DSTT","CT_ECO","% đạt ECO"
+    ];
+    const rows=[`<Row>${headers.map(h=>xcell110(h,"String","Header")).join("")}</Row>`];
+
+    (x.rows||[]).forEach((r,i)=>{
+      const t=r.target||{};
+      const buText=(r.by_bu||[]).map(b=>
+        `${b.bu}: TH ${fmt110(b.doanh_so_giao)} / CT ${b.ct_bu?fmt110(b.ct_bu):"-"} / ${b.ct_bu?Number(b.pct_bu).toFixed(2)+"%":"-"}`
+      ).join(" | ");
+
+      rows.push(`<Row>
+        ${xcell110(i+1,"Number","Num")}
+        ${xcell110(r.ma_nv)}
+        ${xcell110(r.ten_nv||"")}
+        ${xcell110(r.ma_vung_kd||"")}
+        ${xcell110(r.doanh_so_dat,"Number","Num")}
+        ${xcell110(r.doanh_so_giao,"Number","Num")}
+        ${xcell110(r.so_don_dat,"Number","Num")}
+        ${xcell110(r.so_don_giao_tc,"Number","Num")}
+        ${xcell110(r.don_giao_du,"Number","Num")}
+        ${xcell110(r.don_giao_mot_phan,"Number","Num")}
+        ${xcell110(r.don_vo_100,"Number","Num")}
+        ${xcell110(r.kh_co_don_giao_tc,"Number","Num")}
+        ${xcell110(r.tong_kh_phu_trach,"Number","Num")}
+        ${xcell110(Number(r.eco||0)/100,"Number","Pct")}
+        ${xcell110(buText)}
+        ${xcell110(t.ct_dstl||0,"Number","Num")}
+        ${xcell110(Number(t.pct_dstl||0)/100,"Number","Pct")}
+        ${xcell110(t.ct_dstt||0,"Number","Num")}
+        ${xcell110(Number(t.pct_dstt||0)/100,"Number","Pct")}
+        ${xcell110(Number(t.ct_eco_pct||0)/100,"Number","Pct")}
+        ${xcell110(Number(t.pct_eco||0)/100,"Number","Pct")}
+      </Row>`);
+    });
+
+    download110(
+      `KQ_NVKD_${x.month}.xls`,
+      rows,
+      [42,70,135,75,90,90,60,70,60,70,60,75,75,65,190,90,75,90,75,70,75]
+    );
+  }
+
+  function install110(){
+    ["exportMain108b","exportMain108","exportMain106","exportMain105"].forEach(id=>document.getElementById(id)?.remove());
+    // V1.0.3 still adds an export button with a stale row cache.
+    // Keep only the current export, which fetches the active filters.
+    document.getElementById("export103")?.remove();
+
+    const run=document.getElementById("run");
+    if(run && !document.getElementById("exportMain110")){
+      const b=document.createElement("button");
+      b.id="exportMain110";
+      b.textContent="Xuất Excel";
+      b.style.marginLeft="6px";
+      b.onclick=export110;
+      run.parentNode.appendChild(b);
+    }
+
+    if(run && !run.dataset.v110){
+      run.dataset.v110="1";
+      run.addEventListener("click",()=>setTimeout(renderUnified110,450));
+    }
+
+    ["month","emp","region","bu"].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el && !el.dataset.v110){
+        el.dataset.v110="1";
+        el.addEventListener("change",()=>setTimeout(renderUnified110,450));
+      }
+    });
+
+    setTimeout(renderUnified110,500);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(install110,200));
+  }else{
+    setTimeout(install110,200);
+  }
+})();
+</script>
+
+</body>
+</html>
